@@ -53,7 +53,6 @@ std::string format_output(const std::vector<std::string> &strings) {
         if (client.try_consume_message(&messagePointer)) {
             std::string messageString = messagePointer->get_payload_str();
             if (messageString.empty()) {
-                current_size = 0;
                 separation = true;
             }else {
                 current_size = messageString.size();
