@@ -54,21 +54,20 @@ std::string format_output(const std::vector<std::string> &strings) {
             std::string messageString = messagePointer->get_payload_str();
             if (messageString.empty()) {
                 separation = true;
-            }else {
+            } else {
                 current_size = messageString.size();
                 separation = false;
                 received_messages++;
             }
             //std::cout << messageString.size() << std::endl;
-
         }
         if (received_messages == 1 && !separation) {
             starttime = std::chrono::steady_clock::now();
         } else if (separation && received_messages > 0) {
             endtime = std::chrono::steady_clock::now();
             auto duration = endtime - starttime;
-            auto throughput = (received_messages * current_size) / (duration.count() / 1000000000);
-            auto message_per_seconds = received_messages / (duration.count() / 1000000000);
+            auto throughput = 1000000000 * received_messages * current_size / duration.count();
+            auto message_per_seconds = 1000000000 * received_messages / duration.count();
             std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
                                       "," + std::to_string(throughput) + "," + std::to_string(message_per_seconds)
                                       + "]";
