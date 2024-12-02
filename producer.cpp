@@ -4,7 +4,7 @@
 #include <fstream>
 #include <mqtt/async_client.h>
 
-constexpr int NUMBER_OF_MESSAGES = 100;
+constexpr long long NUMBER_OF_MESSAGES = 100;
 constexpr auto RESULTS_FILE = "producer_results.txt";
 constexpr auto FILE_OPENNING = "[";
 constexpr auto FILE_CLOSSING = "]";

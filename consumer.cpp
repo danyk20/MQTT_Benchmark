@@ -43,7 +43,7 @@ std::string format_output(const std::vector<std::string> &strings) {
     client.start_consuming();
     auto starttime = std::chrono::steady_clock::now();
     auto endtime = std::chrono::steady_clock::now();
-    int received_messages = 0;
+    long long received_messages = 0;
     size_t current_size = 0;
     std::vector<std::string> measurements;
     bool separation = false;
