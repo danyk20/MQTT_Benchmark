@@ -46,8 +46,8 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
 
         auto endtime = std::chrono::steady_clock::now();
         auto duration = endtime - starttime;
-        auto throughput = (NUMBER_OF_MESSAGES * message.size()) / (duration.count() / 1000000000);
-        auto message_per_seconds = NUMBER_OF_MESSAGES / (duration.count() / 1000000000);
+        auto throughput = 1000000000 * NUMBER_OF_MESSAGES * message.size() / duration.count();
+        auto message_per_seconds = 1000000000 * NUMBER_OF_MESSAGES / duration.count();
 
         std::cout << "Sent " << NUMBER_OF_MESSAGES << " times `" << message.size() << "` bytes to topic `" << topic <<
                 "` in " << duration.count() << "ns" << std::endl;
