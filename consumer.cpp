@@ -2,7 +2,6 @@
 #include <mqtt/client.h>
 #include <ostream>
 
-constexpr int NUMBER_OF_MESSAGES = 100;
 constexpr auto RESULTS_FILE = "consumer_results.txt";
 constexpr auto FILE_OPENNING = "[";
 constexpr auto FILE_CLOSSING = "]";
@@ -47,22 +46,29 @@ std::string format_output(const std::vector<std::string> &strings) {
     int received_messages = 0;
     size_t current_size = 0;
     std::vector<std::string> measurements;
+    bool separation = false;
     while (true) {
         mqtt::const_message_ptr messagePointer;
 
         if (client.try_consume_message(&messagePointer)) {
             std::string messageString = messagePointer->get_payload_str();
-            current_size = messageString.size();
+            if (messageString.empty()) {
+                current_size = 0;
+                separation = true;
+            }else {
+                current_size = messageString.size();
+                separation = false;
+            }
             //std::cout << messageString.size() << std::endl;
             received_messages++;
         }
-        if (received_messages == 1) {
+        if (received_messages == 1 and !separation) {
             starttime = std::chrono::steady_clock::now();
-        } else if (received_messages == NUMBER_OF_MESSAGES) {
+        } else if (separation) {
             endtime = std::chrono::steady_clock::now();
             auto duration = endtime - starttime;
-            auto message_per_seconds = NUMBER_OF_MESSAGES / (duration.count() / 1000000000.0);
-            std::string measurement = "[" + std::to_string(NUMBER_OF_MESSAGES) + "," + std::to_string(current_size) +
+            auto message_per_seconds = received_messages / (duration.count() / 1000000000.0);
+            std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
                                       "," + std::to_string(duration.count()) + "," + std::to_string(message_per_seconds)
                                       + "]";
             measurements.push_back(measurement);

@@ -55,6 +55,17 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
         measurement = "[" + std::to_string(NUMBER_OF_MESSAGES) + "," + std::to_string(message.size()) + "," +
                       std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
 
+        // separation
+        char *buffer = new char[0];
+        std::fill_n(buffer, 0, '0');
+        std::string empty_message(buffer, 0);
+        delete[] buffer;
+
+        for (int i = 0; i < NUMBER_OF_MESSAGES; ++i) {
+            auto msg = mqtt::make_message(topic, empty_message);
+            client.publish(msg)->wait();
+        }
+
         // Disconnect client
         client.disconnect()->wait();
     } catch (const mqtt::exception &e) {
