@@ -3,9 +3,9 @@
 #include <ostream>
 
 constexpr int NUMBER_OF_MESSAGES = 100;
-constexpr std::string RESULTS_FILE = "consumer_results.txt";
-constexpr std::string FILE_OPENNING = "[";
-constexpr std::string FILE_CLOSSING = "]";
+constexpr auto RESULTS_FILE = "consumer_results.txt";
+constexpr auto FILE_OPENNING = "[";
+constexpr auto FILE_CLOSSING = "]";
 
 void store_string(const std::string &data) {
     std::ofstream outfile(RESULTS_FILE, std::ios_base::app);
