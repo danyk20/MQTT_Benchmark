@@ -60,11 +60,8 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
         std::fill_n(buffer, 0, '0');
         std::string empty_message(buffer, 0);
         delete[] buffer;
-
-        for (int i = 0; i < NUMBER_OF_MESSAGES; ++i) {
-            auto msg = mqtt::make_message(topic, empty_message);
-            client.publish(msg)->wait();
-        }
+        auto msg = mqtt::make_message(topic, empty_message);
+        client.publish(msg)->wait();
 
         // Disconnect client
         client.disconnect()->wait();
