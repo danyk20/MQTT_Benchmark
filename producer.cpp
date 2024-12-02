@@ -27,9 +27,7 @@ void publishMQTT(const std::string &message, const std::string &topic) {
 
     try {
         // Connect to broker
-        std::cout << "Connecting to MQTT broker..." << std::endl;
         client.connect(connOpts)->wait();
-        std::cout << "Connected to MQTT Broker!" << std::endl;
 
         auto starttime = std::chrono::steady_clock::now();
 
@@ -40,9 +38,15 @@ void publishMQTT(const std::string &message, const std::string &topic) {
         }
 
         auto endtime = std::chrono::steady_clock::now();
+        auto duration = endtime - starttime;
+        auto message_per_seconds = NUMBER_OF_MESSAGES / (duration.count() / 1000000000.0);
 
         std::cout << "Sent " << NUMBER_OF_MESSAGES << " times `" << message.size() << "` bytes to topic `" << topic <<
-                "` in " << endtime - starttime << std::endl;
+                "` in " << duration << std::endl;
+
+        // [nmessages,single-messagesize, bit/s, nmessage/s]
+        std::cout << "[" << NUMBER_OF_MESSAGES << "," << message.size() << "," << duration << "," << message_per_seconds
+                << "]" << std::endl;
 
         // Disconnect client
         client.disconnect()->wait();
