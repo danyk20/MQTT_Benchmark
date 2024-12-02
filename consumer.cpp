@@ -58,13 +58,14 @@ std::string format_output(const std::vector<std::string> &strings) {
             }else {
                 current_size = messageString.size();
                 separation = false;
+                received_messages++;
             }
             //std::cout << messageString.size() << std::endl;
-            received_messages++;
+
         }
-        if (received_messages == 1 and !separation) {
+        if (received_messages == 1 && !separation) {
             starttime = std::chrono::steady_clock::now();
-        } else if (separation) {
+        } else if (separation && received_messages > 0) {
             endtime = std::chrono::steady_clock::now();
             auto duration = endtime - starttime;
             auto message_per_seconds = received_messages / (duration.count() / 1000000000.0);
