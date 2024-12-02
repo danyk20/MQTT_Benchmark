@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <mqtt/async_client.h>
 
+constexpr int NUMBER_OF_MESSAGES = 100;
+
 void publishMQTT(const std::string &message, const std::string &topic = "test");
 
 void publish(const std::string &protocol, const std::string &message) {
@@ -29,10 +31,18 @@ void publishMQTT(const std::string &message, const std::string &topic) {
         client.connect(connOpts)->wait();
         std::cout << "Connected to MQTT Broker!" << std::endl;
 
-        // Publish message
-        auto msg = mqtt::make_message(topic, message);
-        client.publish(msg)->wait();
-        std::cout << "Sent `" << message.size() << "` bytes to topic `" << topic << "`" << std::endl;
+        auto starttime = std::chrono::steady_clock::now();
+
+        // Publish all messages
+        for (int i = 0; i < NUMBER_OF_MESSAGES; ++i) {
+            auto msg = mqtt::make_message(topic, message);
+            client.publish(msg)->wait();
+        }
+
+        auto endtime = std::chrono::steady_clock::now();
+
+        std::cout << "Sent " << NUMBER_OF_MESSAGES << " times `" << message.size() << "` bytes to topic `" << topic <<
+                "` in " << endtime - starttime << std::endl;
 
         // Disconnect client
         client.disconnect()->wait();
@@ -43,7 +53,6 @@ void publishMQTT(const std::string &message, const std::string &topic) {
 
 
 std::string generate_message(int size_in_kb) {
-
     const size_t memorySize = size_in_kb * 1024;
     char *buffer = new char[memorySize];
 
