@@ -18,7 +18,7 @@
         if (client.try_consume_message(&messagePointer))
         {
             std::string messageString = messagePointer -> get_payload_str();
-            std::cout << messageString << std::endl;
+            std::cout << messageString.size() << std::endl;
         }
     }
 }
