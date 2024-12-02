@@ -67,9 +67,10 @@ std::string format_output(const std::vector<std::string> &strings) {
         } else if (separation && received_messages > 0) {
             endtime = std::chrono::steady_clock::now();
             auto duration = endtime - starttime;
-            auto message_per_seconds = received_messages / (duration.count() / 1000000000.0);
+            auto throughput = (received_messages * current_size) / (duration.count() / 1000000000);
+            auto message_per_seconds = received_messages / (duration.count() / 1000000000);
             std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
-                                      "," + std::to_string(duration.count()) + "," + std::to_string(message_per_seconds)
+                                      "," + std::to_string(throughput) + "," + std::to_string(message_per_seconds)
                                       + "]";
             measurements.push_back(measurement);
             received_messages = 0;
