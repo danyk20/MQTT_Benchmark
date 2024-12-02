@@ -52,27 +52,34 @@ void publishMQTT(const std::string &message, const std::string &topic) {
 }
 
 
-std::string generate_message(int size_in_kb) {
-    const size_t memorySize = size_in_kb * 1024;
-    char *buffer = new char[memorySize];
+std::vector<std::string> generate_messages(int min_size_in_kb, int max_size_in_kb) {
+    std::vector<std::string> result;
 
-    std::fill(buffer, buffer + memorySize, '0');
-    std::string message(buffer, memorySize);
-    delete[] buffer;
+    for (size_t memorySize = min_size_in_kb * 1024; memorySize <= max_size_in_kb * 1024; memorySize *= 2) {
+        char *buffer = new char[memorySize];
 
-    return message;
+        std::fill(buffer, buffer + memorySize, '0');
+        std::string message(buffer, memorySize);
+        delete[] buffer;
+
+        result.emplace_back(message);
+    }
+
+    return result;
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <protocol> <size_in_kb>" << std::endl;
+    if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " <protocol> <min_size> <max_size>" << std::endl;
         return 1;
     }
 
     const std::string protocol = argv[1];
-    const std::string message = generate_message(atoi(argv[2]));
+    const std::vector<std::string> messages = generate_messages(atoi(argv[2]), atoi(argv[3]));
 
-    publish(protocol, message);
+    for (const std::string &message: messages) {
+        publish(protocol, message);
+    }
 
     return 0;
 }
