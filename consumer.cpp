@@ -74,7 +74,7 @@ std::string format_output(const std::vector<std::string> &strings) {
             measurements.push_back(measurement);
             received_messages = 0;
         }
-        if (measurements.size() == 10) {
+        if (measurements.size() == 15) {
             store_string(format_output(measurements));
             measurements.clear();
         }
