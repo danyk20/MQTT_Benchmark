@@ -42,7 +42,7 @@ std::string format_output(const std::vector<std::string> &strings) {
 }
 
 void add_measurement(std::chrono::steady_clock::time_point start_time, long long received_messages, size_t current_size,
-                     std::vector<std::string> measurements) {
+                     std::vector<std::string>* measurements) {
     /*
      * Add measurement as string into given vector of measurements. Format of single measurement is following :
      * [number_of_messages,size_of_the_message,B/s,number_of_messages/s]
@@ -52,14 +52,14 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, long long
      * @current_size - how big is each of the messages
      * @measurements - vector of previous measurements
      */
-    std::chrono::steady_clock::time_point endtime = std::chrono::steady_clock::now();
-    auto duration = endtime - start_time;
+    std::chrono::steady_clock::time_point end_time = std::chrono::steady_clock::now();
+    auto duration = end_time - start_time;
     auto throughput = 1000000000 * received_messages * current_size / duration.count();
     auto message_per_seconds = 1000000000 * received_messages / duration.count();
     std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
                               "," + std::to_string(throughput) + "," + std::to_string(message_per_seconds)
                               + "]";
-    measurements.push_back(measurement);
+    measurements->push_back(measurement);
 }
 
 std::unique_ptr<mqtt::client> prepare_consumer() {
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
                 start_time = std::chrono::steady_clock::now();
             } else if (separation && received_messages > 0) {
                 // stop timer - separator payload arrived
-                add_measurement(start_time, received_messages, current_size, measurements);
+                add_measurement(start_time, received_messages, current_size, &measurements);
                 received_messages = 0; // reset message counter
             }
             if (measurements.size() == NUMBER_OF_MEASUREMENTS) {
