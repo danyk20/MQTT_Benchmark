@@ -67,19 +67,15 @@ std::string publishMQTT(const std::string &message) {
     try {
         client.connect(connOpts)->wait();
 
-        // Pre-create all messages to minimize allocation overhead
-        std::vector<std::shared_ptr<mqtt::message> > messages;
-        messages.reserve(NUMBER_OF_MESSAGES);
-        for (int i = 0; i < NUMBER_OF_MESSAGES; ++i) {
-            messages.push_back(mqtt::make_message(TOPIC, message));
-        }
+        // Pre-create the message to minimize allocation overhead
+        auto mqtt_message = mqtt::make_message(TOPIC, message);
 
-        // Publish all messages asynchronously
+        // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
         std::vector<std::shared_ptr<mqtt::token> > tokens;
         tokens.reserve(NUMBER_OF_MESSAGES);
         auto start_time = std::chrono::steady_clock::now();
-        for (const auto &msg: messages) {
-            tokens.push_back(client.publish(msg));
+        for (auto i = 0; i < NUMBER_OF_MESSAGES; ++i) {
+            tokens.push_back(client.publish(mqtt_message));
         }
 
         // Wait for all publish tokens to complete
