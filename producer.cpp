@@ -63,7 +63,7 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
         auto message_per_seconds = 1000000000 * NUMBER_OF_MESSAGES / duration.count();
 
         std::cout << "Sent " << NUMBER_OF_MESSAGES << " messages of size " << message.size()
-                << " bytes to topic '" << topic << "' in " << duration << "ns" << std::endl;
+                << " bytes to topic '" << topic << "' in " << duration.count() << "ns" << std::endl;
 
         measurement = "[" + std::to_string(NUMBER_OF_MESSAGES) + "," + std::to_string(message.size()) + "," +
                       std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
