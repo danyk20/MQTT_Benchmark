@@ -8,9 +8,9 @@ constexpr auto CLIENT_ID = "";
 
 void store_string(const std::string &data) {
     /**
-     * Save string into the file
+     * Append string into the file
      *
-     * @data string to store
+     * @data - string to store
      */
     std::ofstream outfile(RESULTS_FILE, std::ios_base::app);
 
@@ -25,6 +25,8 @@ void store_string(const std::string &data) {
 std::string format_output(const std::vector<std::string> &strings) {
     /**
      * Format elements in the vector into following string [<element>,<element>,...,<element>]
+     *
+     * @strings - vector of string elements to be formatted
      */
     std::string result = "[";
 
@@ -39,14 +41,19 @@ std::string format_output(const std::vector<std::string> &strings) {
     return result;
 }
 
-void add_measurement(std::chrono::steady_clock::time_point starttime, long long received_messages, size_t current_size,
+void add_measurement(std::chrono::steady_clock::time_point start_time, long long received_messages, size_t current_size,
                      std::vector<std::string> measurements) {
     /*
      * Add measurement as string into given vector of measurements. Format of single measurement is following :
      * [number_of_messages,size_of_the_message,B/s,number_of_messages/s]
+     *
+     * @start_time - when was the first message received
+     * @received_messages - how many message have been received
+     * @current_size - how big is each of the messages
+     * @measurements - vector of previous measurements
      */
     std::chrono::steady_clock::time_point endtime = std::chrono::steady_clock::now();
-    auto duration = endtime - starttime;
+    auto duration = endtime - start_time;
     auto throughput = 1000000000 * received_messages * current_size / duration.count();
     auto message_per_seconds = 1000000000 * received_messages / duration.count();
     std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
@@ -73,6 +80,11 @@ void process_payload(long long &received_messages, size_t &current_size, bool &s
                      const mqtt::const_message_ptr &message_pointer) {
     /**
      * Read message size and update message counter. Empty message is considered as separator.
+     *
+     * @received_messages - how many messages have been received
+     * @current_size - how big is each of the messages
+     * @separation - flag whether is it separation message (with no payload)
+     * @message_pointer - pointer to the received message
      */
     const std::string messageString = message_pointer->get_payload_str();
     if (messageString.empty()) {
