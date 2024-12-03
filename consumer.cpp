@@ -3,7 +3,6 @@
 #include <ostream>
 
 constexpr auto RESULTS_FILE = "consumer_results.txt";
-constexpr int NUMBER_OF_MEASUREMENTS = 14; // number of different message payloads sizes (except separator)
 constexpr auto TOPIC = "test";
 constexpr auto CLIENT_ID = "";
 
@@ -85,7 +84,7 @@ void process_payload(long long &received_messages, size_t &current_size, bool &s
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     const auto client = prepare_consumer().release();
     auto start_time = std::chrono::steady_clock::now();
     long long received_messages = 0;
@@ -93,6 +92,8 @@ int main() {
     std::vector<std::string> measurements;
     bool separation = false;
     mqtt::const_message_ptr messagePointer;
+    constexpr int NUMBER_OF_MEASUREMENTS = std::stoi(argv[1]);
+    // number of different message payloads sizes (except separator)
 
     while (true) {
         if (client->try_consume_message(&messagePointer)) {

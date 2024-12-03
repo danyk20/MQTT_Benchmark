@@ -1,6 +1,41 @@
 # Instructions
 
-```shell
-g++ -o produce producer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
-g++ -o consume consumer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
-```
+## Prerequisites
+
+- Install [eclipsie-paho](https://github.com/eclipse-paho/paho.mqtt.cpp)
+- ```shell
+   git clone https://github.com/eclipse/paho.mqtt.cpp
+   cd paho.mqtt.cpp
+   git checkout v1.4.0
+   git submodule init
+   git submodule update
+   cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
+   sudo cmake --build build/ --target install
+   ```
+
+## Compilation
+
+1. Export environment variables
+    ```shell
+    BROKER_IP=<broker_ip> MQTT_PORT=<broker_port> DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
+    ```
+
+2. Compile sources
+
+    ```shell
+    g++ -o produce producer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
+    g++ -o consume consumer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
+    ```
+
+3. Run consumer `./consume <number_of_different_sizes>`
+
+    ```shell
+    ./consumer 14
+    ```
+4. Run producer `./produce <protocol> <min_size_in_kb> <max_size_in_kb>`
+
+   ```shell
+   ./produce mqtt 1 8192
+    ```
+    - Note: This example will send 14 different payload size: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
+      8192
