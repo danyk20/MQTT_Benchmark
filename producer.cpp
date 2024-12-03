@@ -10,7 +10,7 @@ constexpr long long NUMBER_OF_MESSAGES = 100;
 constexpr long long NUMBER_OF_REPETITIONS = 1;
 constexpr auto RESULTS_FILE = "producer_results.txt";
 constexpr auto TOPIC = "test";
-constexpr std::string USER_ID;
+constexpr std::string USER_ID = "bril";
 
 void publish_separator(mqtt::async_client *client) {
     /**
