@@ -1,4 +1,6 @@
-# Instructions
+# MQTT Benchmark
+
+Publish and consume messages of different payloads and evaluate how long does it take.
 
 ## Prerequisites
 
@@ -39,3 +41,26 @@
     ```
     - Note: This example will send 14 different payload size: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
       8192
+
+### Producer
+
+Publish messages of sizes from given range. Range specify the minimum and maximum size of the payload that will be
+published. Maximum payload size is smaller or equal to the larges payload that will be sent. Producer sends this
+messages in `NUMBER_OF_REPETITIONS` repetitions and in each repetition each message size will be sent
+`NUMBER_OF_MESSAGES` times.
+
+e.g. message sizes based on given range:
+
+- `Min` - 1; `Max` 10: `[1,2,4,8,16]`
+- `Min` - 1; `Max` 16: `[1,2,4,8,16]`
+
+### Consumer
+
+Run indefinitely but store new measurement data each time when the number of measurements (the only argument) is
+reached. Number of measurements counts how many separators (message with empty payload) arrives. Several separator in a
+row are counted just once.
+
+e.g. received payload's sizes:
+
+- 1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0, = 5 separators
+- 1,1,1,1,1,0,0,0,0,,0,,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0, = 4 separators
