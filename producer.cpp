@@ -8,25 +8,14 @@
 
 constexpr long long NUMBER_OF_MESSAGES = 100;
 constexpr auto RESULTS_FILE = "producer_results.txt";
+constexpr auto TOPIC = "test";
+constexpr std::string USER_ID;
 
-std::string publishMQTT(const std::string &message, const std::string &topic = "test");
-
-std::string publish(const std::string &protocol, const std::string &message) {
-    if (protocol == "MQTT" || protocol == "mqtt") {
-        return publishMQTT(message);
-    } else {
-        std::cerr << "Unsupported protocol: " << protocol << std::endl;
-    }
-    return "";
-}
-
-std::string publishMQTT(const std::string &message, const std::string &topic) {
-    // [nmessages,single-messagesize, bit/s, nmessage/s]
+std::string publishMQTT(const std::string &message) {
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
-    const std::string clientId = "test";
 
-    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), clientId);
+    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), USER_ID);
 
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
@@ -41,7 +30,7 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
         messages.reserve(NUMBER_OF_MESSAGES);
 
         for (int i = 0; i < NUMBER_OF_MESSAGES; ++i) {
-            messages.push_back(mqtt::make_message(topic, message));
+            messages.push_back(mqtt::make_message(TOPIC, message));
         }
 
         // Publish all messages asynchronously
@@ -63,17 +52,15 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
         auto message_per_seconds = 1000000000 * NUMBER_OF_MESSAGES / duration.count();
 
         std::cout << "Sent " << NUMBER_OF_MESSAGES << " messages of size " << message.size()
-                << " bytes to topic '" << topic << "' in " << duration.count() << "ns" << std::endl;
+                << " bytes to topic '" << TOPIC << "' in " << duration.count() << "ns" << std::endl;
 
         measurement = "[" + std::to_string(NUMBER_OF_MESSAGES) + "," + std::to_string(message.size()) + "," +
                       std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
 
         // separation
-        char *buffer = new char[0];
-        std::fill_n(buffer, 0, '0');
-        std::string empty_message(buffer, 0);
-        delete[] buffer;
-        auto msg = mqtt::make_message(topic, empty_message);
+
+        const std::string empty_message;
+        const auto msg = mqtt::make_message(TOPIC, empty_message);
         client.publish(msg)->wait();
 
         // Disconnect client
@@ -85,11 +72,22 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
     return measurement;
 }
 
+std::string publish(const std::string &protocol, const std::string &message) {
+    // [nmessages,single-messagesize, bit/s, nmessage/s]
+    if (protocol == "MQTT" || protocol == "mqtt") {
+        return publishMQTT(message);
+    }
+    std::cerr << "Unsupported protocol: " << protocol << std::endl;
+    return "";
+}
+
+
+
 std::vector<std::string> generate_messages(int min_size_in_kb, int max_size_in_kb) {
     std::vector<std::string> result;
 
     for (size_t memorySize = min_size_in_kb * 1024; memorySize <= max_size_in_kb * 1024; memorySize *= 2) {
-        result.emplace_back(std::string(memorySize, '0')); // Directly create strings
+        result.emplace_back(memorySize, '0'); // Directly create strings
     }
 
     return result;
