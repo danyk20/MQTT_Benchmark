@@ -6,7 +6,7 @@
 #include <vector>
 #include <chrono>
 
-constexpr long long NUMBER_OF_MESSAGES = 100;
+constexpr long long NUMBER_OF_MESSAGES = 1000;
 constexpr long long NUMBER_OF_REPETITIONS = 1;
 constexpr auto RESULTS_FILE = "producer_results.txt";
 constexpr auto TOPIC = "test";
@@ -58,7 +58,8 @@ std::string publishMQTT(const std::string &message) {
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
 
-    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), USER_ID);
+    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), USER_ID, NUMBER_OF_MESSAGES);
+
 
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
@@ -140,7 +141,7 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std:
+std:
     std::ofstream outfile(RESULTS_FILE, std::ios_base::app);
     if (outfile.is_open()) {
         outfile << data;
