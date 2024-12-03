@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
     std::vector<std::string> measurements;
     bool separation = false;
     mqtt::const_message_ptr messagePointer;
-    constexpr int NUMBER_OF_MEASUREMENTS = std::stoi(argv[1]);
+    const int NUMBER_OF_MEASUREMENTS = std::stoi(argv[1]);
     // number of different message payloads sizes (except separator)
 
     while (true) {
