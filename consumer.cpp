@@ -59,6 +59,7 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, long long
     std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
                               "," + std::to_string(throughput) + "," + std::to_string(message_per_seconds)
                               + "]";
+    std::cout << measurement << " - " << duration << std::endl;
     measurements->push_back(measurement);
 }
 
@@ -111,7 +112,7 @@ int main(int argc, char *argv[]) {
         if (client->try_consume_message(&messagePointer)) {
             // message arrived
             process_payload(received_messages, current_size, separation, messagePointer);
-            if (received_messages > 0 && !separation) {
+            if (received_messages == 1 && !separation) {
                 // start timer - first measured payload arrived
                 start_time = std::chrono::steady_clock::now();
             } else if (separation && received_messages > 0) {
