@@ -7,6 +7,7 @@
 #include <chrono>
 
 constexpr long long NUMBER_OF_MESSAGES = 1000;
+constexpr long long BUFFER = 100;
 constexpr long long NUMBER_OF_REPETITIONS = 1;
 constexpr auto RESULTS_FILE = "producer_results.txt";
 constexpr auto TOPIC = "test";
@@ -58,7 +59,7 @@ std::string publishMQTT(const std::string &message) {
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
 
-    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), USER_ID, NUMBER_OF_MESSAGES);
+    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), USER_ID, BUFFER);
 
 
     auto connOpts = mqtt::connect_options_builder()
@@ -74,13 +75,20 @@ std::string publishMQTT(const std::string &message) {
         std::vector<std::shared_ptr<mqtt::token> > tokens;
         tokens.reserve(NUMBER_OF_MESSAGES);
         auto start_time = std::chrono::steady_clock::now();
+        size_t last_published = 0;
         for (auto i = 0; i < NUMBER_OF_MESSAGES; ++i) {
             tokens.push_back(client.publish(mqtt_message));
+            if (tokens.size() - last_published >= BUFFER) {
+                // message buffer is full
+                for (; tokens.size() - last_published >= BUFFER / 10; ++last_published) {
+                    tokens[last_published]->wait();
+                }
+            }
         }
 
         // Wait for all publish tokens to complete
-        for (auto &token: tokens) {
-            token->wait();
+        for (; last_published < tokens.size(); ++last_published) {
+            tokens[last_published]->wait();
         }
 
         auto payload_size = message.size();
