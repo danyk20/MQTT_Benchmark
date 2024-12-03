@@ -86,7 +86,7 @@ std::string publishMQTT(const std::string &message) {
             token->wait();
         }
 
-        auto payload_size = messages.size();
+        auto payload_size = message.size();
         std::string measurement = process_measurement(start_time, payload_size);
 
         publish_separator(&client);
