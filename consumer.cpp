@@ -59,7 +59,7 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, long long
     std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
                               "," + std::to_string(throughput) + "," + std::to_string(message_per_seconds)
                               + "]";
-    std::cout << measurement << " - " << duration << std::endl;
+    // std::cout << measurement << " - " << duration.count() << std::endl;
     measurements->push_back(measurement);
 }
 
