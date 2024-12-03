@@ -3,12 +3,11 @@
 #include <cstdlib>
 #include <fstream>
 #include <mqtt/async_client.h>
+#include <vector>
+#include <chrono>
 
 constexpr long long NUMBER_OF_MESSAGES = 100;
 constexpr auto RESULTS_FILE = "producer_results.txt";
-constexpr auto FILE_OPENNING = "[";
-constexpr auto FILE_CLOSSING = "]";
-
 
 std::string publishMQTT(const std::string &message, const std::string &topic = "test");
 
@@ -25,23 +24,37 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
     // [nmessages,single-messagesize, bit/s, nmessage/s]
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
+    const std::string clientId = "test";
 
-    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), "test");
+    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), clientId);
 
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
             .finalize();
+
     std::string measurement;
     try {
-        // Connect to broker
         client.connect(connOpts)->wait();
 
-        auto starttime = std::chrono::steady_clock::now();
+        // Pre-create all messages to minimize allocation overhead
+        std::vector<std::shared_ptr<mqtt::message> > messages;
+        messages.reserve(NUMBER_OF_MESSAGES);
 
-        // Publish all messages
         for (int i = 0; i < NUMBER_OF_MESSAGES; ++i) {
-            auto msg = mqtt::make_message(topic, message);
-            client.publish(msg)->wait();
+            messages.push_back(mqtt::make_message(topic, message));
+        }
+
+        // Publish all messages asynchronously
+        std::vector<std::shared_ptr<mqtt::token> > tokens;
+        tokens.reserve(NUMBER_OF_MESSAGES);
+        auto starttime = std::chrono::steady_clock::now();
+        for (const auto &msg: messages) {
+            tokens.push_back(client.publish(msg));
+        }
+
+        // Wait for all publish tokens to complete
+        for (auto &token: tokens) {
+            token->wait();
         }
 
         auto endtime = std::chrono::steady_clock::now();
@@ -49,8 +62,8 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
         auto throughput = 1000000000 * NUMBER_OF_MESSAGES * message.size() / duration.count();
         auto message_per_seconds = 1000000000 * NUMBER_OF_MESSAGES / duration.count();
 
-        std::cout << "Sent " << NUMBER_OF_MESSAGES << " times `" << message.size() << "` bytes to topic `" << topic <<
-                "` in " << duration.count() << "ns" << std::endl;
+        std::cout << "Sent " << NUMBER_OF_MESSAGES << " messages of size " << message.size()
+                << " bytes to topic '" << topic << "' in " << duration << "ns" << std::endl;
 
         measurement = "[" + std::to_string(NUMBER_OF_MESSAGES) + "," + std::to_string(message.size()) + "," +
                       std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
@@ -66,24 +79,17 @@ std::string publishMQTT(const std::string &message, const std::string &topic) {
         // Disconnect client
         client.disconnect()->wait();
     } catch (const mqtt::exception &e) {
-        std::cerr << "Failed to publish MQTT message: " << e.what() << std::endl;
+        std::cerr << "Failed to publish MQTT messages: " << e.what() << std::endl;
     }
 
     return measurement;
 }
 
-
 std::vector<std::string> generate_messages(int min_size_in_kb, int max_size_in_kb) {
     std::vector<std::string> result;
 
     for (size_t memorySize = min_size_in_kb * 1024; memorySize <= max_size_in_kb * 1024; memorySize *= 2) {
-        char *buffer = new char[memorySize];
-
-        std::fill_n(buffer, memorySize, '0');
-        std::string message(buffer, memorySize);
-        delete[] buffer;
-
-        result.emplace_back(message);
+        result.emplace_back(std::string(memorySize, '0')); // Directly create strings
     }
 
     return result;
@@ -91,7 +97,6 @@ std::vector<std::string> generate_messages(int min_size_in_kb, int max_size_in_k
 
 void store_string(const std::string &data) {
     std::ofstream outfile(RESULTS_FILE, std::ios_base::app);
-
     if (outfile.is_open()) {
         outfile << data;
         outfile.close();
@@ -117,19 +122,19 @@ std::string format_output(const std::vector<std::string> &strings) {
 
 int main(int argc, char *argv[]) {
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <protocol> <min_size> <max_size>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <protocol> <min_size_kb> <max_size_kb>" << std::endl;
         return 1;
     }
 
     const std::string protocol = argv[1];
-    const std::vector<std::string> messages = generate_messages(atoi(argv[2]), atoi(argv[3]));
-
+    const std::vector<std::string> messages = generate_messages(std::stoi(argv[2]), std::stoi(argv[3]));
 
     std::vector<std::string> measurements;
     measurements.reserve(messages.size());
-    for (const std::string &message: messages) {
+    for (const auto &message: messages) {
         measurements.emplace_back(publish(protocol, message));
     }
+
     store_string(format_output(measurements));
 
     return 0;
