@@ -8,6 +8,7 @@
 
 constexpr long long NUMBER_OF_MESSAGES = 1000;
 constexpr long long BUFFER = 100;
+constexpr long long TIMEOUT_MULTIPLIER = 3;
 constexpr long long NUMBER_OF_REPETITIONS = 1;
 constexpr auto RESULTS_FILE = "producer_results.txt";
 constexpr auto TOPIC = "test";
@@ -21,8 +22,10 @@ void publish_separator(mqtt::async_client *client) {
      */
     const std::string empty_message;
     const auto msg = mqtt::make_message(TOPIC, empty_message);
-    client->publish(msg)->wait();
-    client->disconnect()->wait();
+    if (!client->publish(msg)->wait_for(1000)) {
+        std::cerr << "publishing of separator failed" << std::endl;
+    }
+    client->disconnect()->wait_for(1000);
 }
 
 std::string process_measurement(std::chrono::steady_clock::time_point start_time,
@@ -66,7 +69,9 @@ std::string publishMQTT(const std::string &message) {
             .clean_session()
             .finalize();
     try {
-        client.connect(connOpts)->wait();
+        if (!client.connect(connOpts)->wait_for(10000)) {
+            std::cerr << "connect failed - timeout" << std::endl;
+        }
 
         // Pre-create the message to minimize allocation overhead
         auto mqtt_message = mqtt::make_message(TOPIC, message);
@@ -80,15 +85,19 @@ std::string publishMQTT(const std::string &message) {
             tokens.push_back(client.publish(mqtt_message));
             if (tokens.size() - last_published >= BUFFER) {
                 // message buffer is full
-                for (; tokens.size() - last_published >= BUFFER / 10; ++last_published) {
-                    tokens[last_published]->wait();
+                last_published += std::max(BUFFER / 2ull, 1ull);
+                if (last_published >= tokens.size()) {
+                    last_published = tokens.size() - 1;
+                }
+                if (!tokens[last_published]->wait_for(1000 * TIMEOUT_MULTIPLIER * BUFFER)) {
+                    std::cout << "Timeout waiting for message " << last_published << std::endl;
                 }
             }
         }
 
         // Wait for all publish tokens to complete
-        for (; last_published < tokens.size(); ++last_published) {
-            tokens[last_published]->wait();
+        if (!tokens.back()->wait_for(1000 * TIMEOUT_MULTIPLIER * BUFFER)) {
+            std::cout << "Timeout waiting for message " << last_published << std::endl;
         }
 
         auto payload_size = message.size();

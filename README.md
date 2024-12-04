@@ -68,3 +68,8 @@ e.g. received payload's sizes:
 ## Visualisation 
 
 You can visualise your results using [MQTT Benchmark Plot](https://github.com/danyk20/MQTT_Benchmark_Plot) repo.
+
+## Default Version
+
+MQTT: 3.1.1
+QoS: 0
