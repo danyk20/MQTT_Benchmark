@@ -39,10 +39,10 @@ Publish and consume messages of different payloads and evaluate how long does it
     ```shell
     ./consumer 14
     ```
-4. Run producer `./produce <protocol> <min_size_in_kb> <max_size_in_kb>`
+4. Run producer `./produce <protocol> <min_size_in_kb> <max_size_in_kb> <QoS>`
 
    ```shell
-   ./produce mqtt 1 8192
+   ./produce mqtt 1 8192 0
     ```
     - Note: This example will send 14 different payload size: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
       8192
@@ -59,6 +59,19 @@ e.g. message sizes based on given range:
 - `Min` - 1; `Max` 10: `[1,2,4,8,16]`
 - `Min` - 1; `Max` 16: `[1,2,4,8,16]`
 
+Test support up to three levels of QoS (exact number depends on the broker support):
+
+- At most  (QoS `0`)
+
+- At least once (QoS `1`)
+
+- Exactly once (QoS `2`)
+
+These levels correspond to increasing levels of reliability for message delivery. QoS `0` may lose messages, QoS `1`
+guarantees the message delivery but potentially exists duplicate messages, and QoS `2` ensures that messages are
+delivered exactly once without duplication. As the QoS level increases, the reliability of message delivery also
+increases, but so does the complexity of the transmission process.
+
 ### Consumer
 
 Run indefinitely but store new measurement data each time when the number of measurements (the only argument) is
@@ -70,7 +83,7 @@ e.g. received payload's sizes:
 - 1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0, = 5 separators
 - 1,1,1,1,1,0,0,0,0,,0,,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0, = 4 separators
 
-## Visualisation 
+## Visualisation
 
 You can visualise your results using [MQTT Benchmark Plot](https://github.com/danyk20/MQTT_Benchmark_Plot) repo.
 

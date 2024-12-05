@@ -49,7 +49,7 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
            std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
 }
 
-std::string publishMQTT(const std::string &message) {
+std::string publishMQTT(const std::string &message, int qos) {
     /**
      * Send messages asynchronously and measure that time. After sending all messages send one empty payloud and close
      * the connection.
@@ -75,6 +75,7 @@ std::string publishMQTT(const std::string &message) {
 
         // Pre-create the message to minimize allocation overhead
         auto mqtt_message = mqtt::make_message(TOPIC, message);
+        mqtt_message->set_qos(qos);
 
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
         std::vector<std::shared_ptr<mqtt::token> > tokens;
@@ -111,7 +112,7 @@ std::string publishMQTT(const std::string &message) {
     return "[0,0,0,0]";
 }
 
-std::string publish(const std::string &protocol, const std::string &message) {
+std::string publish(const std::string &protocol, const std::string &message, int qos) {
     /**
     * Send messages based on given protocol.
     *
@@ -122,7 +123,7 @@ std::string publish(const std::string &protocol, const std::string &message) {
     * [number_of_messages,single-message_size,B/s,number_of_message/s]
     */
     if (protocol == "MQTT" || protocol == "mqtt") {
-        return publishMQTT(message);
+        return publishMQTT(message, qos);
     }
     std::cerr << "Unsupported protocol: " << protocol << std::endl;
     return "";
@@ -184,19 +185,20 @@ std::string format_output(const std::vector<std::string> &strings) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <protocol> <min_size_kb> <max_size_kb>" << std::endl;
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " <protocol> <min_size_kb> <max_size_kb> <QoS>" << std::endl;
         return 1;
     }
 
     const std::string protocol = argv[1];
     const std::vector<std::string> messages = generate_messages(std::stoi(argv[2]), std::stoi(argv[3]));
+    const int qos = std::stoi(argv[4]);
 
     std::vector<std::string> measurements;
     measurements.reserve(messages.size());
     for (int i = 0; i < NUMBER_OF_REPETITIONS; ++i) {
         for (const auto &message: messages) {
-            measurements.emplace_back(publish(protocol, message));
+            measurements.emplace_back(publish(protocol, message, qos));
         }
         store_string(format_output(measurements));
     }
