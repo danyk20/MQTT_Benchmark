@@ -14,6 +14,11 @@ Publish and consume messages of different payloads and evaluate how long does it
    cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
    sudo cmake --build build/ --target install
    ```
+- Setup MQTT broker
+-  ```shell
+   docker build -t rabbitmq-benchmark:0.0.1 .
+   docker run --rm -it -d --name rabbitmq -p 1883:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
+   ```
 
 ## Compilation
 
