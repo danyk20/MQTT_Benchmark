@@ -159,7 +159,7 @@ void store_string(const std::string &data) {
 std:
     std::ofstream outfile(RESULTS_FILE, std::ios_base::app);
     if (outfile.is_open()) {
-        outfile << data;
+        outfile << data << std::endl;
         outfile.close();
     } else {
         std::cerr << "Error opening file." << std::endl;
