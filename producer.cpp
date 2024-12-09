@@ -12,7 +12,7 @@ constexpr long long TIMEOUT_MULTIPLIER = 3;
 constexpr long long NUMBER_OF_REPETITIONS = 1;
 constexpr auto RESULTS_FILE = "producer_results.txt";
 constexpr auto TOPIC = "test";
-constexpr char USER_ID[] = "bril";
+constexpr char USER_ID[] = "";
 
 void publish_separator(mqtt::async_client *client) {
     /**
