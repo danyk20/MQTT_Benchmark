@@ -74,6 +74,9 @@ std::string publishMQTT(const std::string &message, int qos) {
             std::cerr << "connect failed - timeout" << std::endl;
         }
 
+        // first non measured message
+        publish_separator(&client);
+
         // Pre-create the message to minimize allocation overhead
         auto mqtt_message = mqtt::make_message(TOPIC, message);
         mqtt_message->set_qos(qos);
