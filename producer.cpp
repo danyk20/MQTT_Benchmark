@@ -22,7 +22,7 @@ void publish_separator(mqtt::async_client *client, const bool disconnect = false
      */
     const std::string empty_message;
     const auto msg = mqtt::make_message(TOPIC, empty_message);
-    msg->set_qos(0);
+    msg->set_qos(1);
     if (!client->publish(msg)->wait_for(10000)) {
         std::cerr << "publishing of separator failed" << std::endl;
     }
