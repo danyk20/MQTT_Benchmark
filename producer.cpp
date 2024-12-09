@@ -14,7 +14,7 @@ constexpr auto RESULTS_FILE = "producer_results.txt";
 constexpr auto TOPIC = "test";
 constexpr char USER_ID[] = "";
 
-void publish_separator(mqtt::async_client *client) {
+void publish_separator(mqtt::async_client *client, const bool disconnect = false) {
     /**
      * Send empty paylod as a separator for time measurment on the consumer and disconnect from the broker
      *
@@ -26,7 +26,9 @@ void publish_separator(mqtt::async_client *client) {
     if (!client->publish(msg)->wait_for(10000)) {
         std::cerr << "publishing of separator failed" << std::endl;
     }
-    client->disconnect()->wait_for(1000);
+    if (disconnect) {
+        client->disconnect()->wait_for(1000);
+    }
 }
 
 std::string process_measurement(std::chrono::steady_clock::time_point start_time,
@@ -108,7 +110,7 @@ std::string publishMQTT(const std::string &message, int qos) {
         auto payload_size = message.size();
         std::string measurement = process_measurement(start_time, payload_size);
 
-        publish_separator(&client);
+        publish_separator(&client, true);
         return measurement;
     } catch (const mqtt::exception &e) {
         std::cerr << "Failed to publish MQTT messages: " << e.what() << std::endl;
