@@ -72,6 +72,25 @@ guarantees the message delivery but potentially exists duplicate messages, and Q
 delivered exactly once without duplication. As the QoS level increases, the reliability of message delivery also
 increases, but so does the complexity of the transmission process.
 
+#### Flags
+};
+
+- `debug` - print debug print when buffer reach the limit: *False*
+- `protocol` - which protocol to use *MQTT*
+- `separator` - send separator after last message of each payload batch *True*
+- `output` - output file: *consumer_results.txt*
+- `topic` - topic to subscribe: *test*
+- `client` - client id: *\<blank>*
+- `min` - minimum payload size *72*KB
+- `max` - minimum payload size *72*KB
+- `qos` - QoS *1*
+- `timeout` - timeout for wait() *5000*ms
+- `repetitions` - number of times to run the script *1*
+- `buffer` - max number of messages that can stored in the buffer *100*
+- `messages` - number of messages that will send per each payload size *400*
+- `period` - minimum delay between 2 messages *80*ms
+- `percentage` - once is buffer full wait until buffer is less than percentage % full *50*
+
 ### Consumer
 
 Run indefinitely but store new measurement data each time when the number of measurements (the only argument) is
@@ -85,7 +104,7 @@ e.g. received payload's sizes:
 
 #### Flags
 
-- `debug` - show debug print after each separator: *False*
+- `debug` - print debug print after each separator: *False*
 - `separators` - number of separators to consume: *1*
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*

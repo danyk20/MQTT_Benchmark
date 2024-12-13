@@ -5,14 +5,28 @@
 #include <mqtt/async_client.h>
 #include <vector>
 #include <chrono>
+#include <thread>
 
-constexpr long long NUMBER_OF_MESSAGES = 1000;
-constexpr long long BUFFER = 100;
-constexpr long long TIMEOUT_MULTIPLIER = 3;
-constexpr long long NUMBER_OF_REPETITIONS = 1;
-constexpr auto RESULTS_FILE = "producer_results.txt";
-constexpr auto TOPIC = "test";
-constexpr char USER_ID[] = "";
+std::map<std::string, std::string> s_arguments = {
+    {"debug", "False"}, // debug print
+    {"separator", "True"}, // number of different message payloads sizes (except separator)
+    {"output", "producer_results.txt"},
+    {"topic", "test"}, // subscribed topic
+    {"client_id", ""},
+    {"protocol", "MQTT"} //
+};
+
+std::map<std::string, long> l_arguments = {
+    {"period", 80}, // min delay between published messages
+    {"messages", 400},
+    {"buffer", 100}, // max number of messages in the buffer
+    {"repetitions", 1},
+    {"timeout", 5000}, // wait timeout in ms
+    {"qos", 1},
+    {"min", 72}, // minimum payload size in KB
+    {"max", 72}, // maximum payload size in KB
+    {"percentage", 50}
+};
 
 void publish_separator(mqtt::async_client *client, const bool disconnect = false) {
     /**
@@ -21,13 +35,13 @@ void publish_separator(mqtt::async_client *client, const bool disconnect = false
      * @client - connection object
      */
     const std::string empty_message;
-    const auto msg = mqtt::make_message(TOPIC, empty_message);
+    const auto msg = mqtt::make_message(s_arguments["topic"], empty_message);
     msg->set_qos(1);
-    if (!client->publish(msg)->wait_for(10000)) {
+    if (!client->publish(msg)->wait_for(l_arguments["timeout"])) {
         std::cerr << "publishing of separator failed" << std::endl;
     }
     if (disconnect) {
-        client->disconnect()->wait_for(1000);
+        client->disconnect()->wait_for(l_arguments["timeout"]);
     }
 }
 
@@ -40,21 +54,37 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
      * @start_time - when start sending of the first payload
      * @payload_size - how big was each payload
      */
+    long number_of_messages = l_arguments["messages"];
     auto end_time = std::chrono::steady_clock::now();
     auto duration = end_time - start_time;
-    auto throughput = 1000000000 * NUMBER_OF_MESSAGES * payload_size / duration.count();
-    auto message_per_seconds = 1000000000 * NUMBER_OF_MESSAGES / duration.count();
+    auto message_per_seconds = number_of_messages / (duration.count() / 1000000000);
+    auto throughput = message_per_seconds * payload_size;
 
-    std::cout << "Sent " << NUMBER_OF_MESSAGES << " messages of size " << payload_size
-            << " bytes to topic '" << TOPIC << "' in " << duration.count() << "ns" << std::endl;
 
-    return "[" + std::to_string(NUMBER_OF_MESSAGES) + "," + std::to_string(payload_size) + "," +
+    if (s_arguments["debug"] == "True") {
+        std::cout << "Sent " << number_of_messages << " messages of size " << payload_size
+                << " bytes to topic '" << s_arguments["topic"] << "' in " << duration.count() << "ns" << std::endl;
+    }
+
+    return "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + "," +
            std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
+}
+
+void wait_for_buffer_dump(std::vector<std::shared_ptr<mqtt::token> > tokens, size_t &last_published,
+                          int percentage) {
+    unsigned long long available_buffer = 100ull / percentage;
+    last_published += std::max(l_arguments["buffer"] / available_buffer, 1ull);
+    if (last_published >= tokens.size()) {
+        last_published = tokens.size() - 1;
+    }
+    if (!tokens[last_published]->wait_for(l_arguments["timeout"])) {
+        std::cout << "Timeout waiting for message " << last_published << std::endl;
+    }
 }
 
 std::string publishMQTT(const std::string &message, int qos) {
     /**
-     * Send messages asynchronously and measure that time. After sending all messages send one empty payloud and close
+     * Send messages asynchronously and measure that time. After sending all messages send one empty payload and close
      * the connection.
      *
      * @message - payload to publish
@@ -65,14 +95,14 @@ std::string publishMQTT(const std::string &message, int qos) {
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
 
-    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), USER_ID, BUFFER);
-
+    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["user_id"],
+                              static_cast<int>(l_arguments["buffer"]));
 
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
             .finalize();
     try {
-        if (!client.connect(connOpts)->wait_for(10000)) {
+        if (!client.connect(connOpts)->wait_for(l_arguments["timeout"])) {
             std::cerr << "connect failed - timeout" << std::endl;
         }
 
@@ -80,30 +110,28 @@ std::string publishMQTT(const std::string &message, int qos) {
         publish_separator(&client);
 
         // Pre-create the message to minimize allocation overhead
-        auto mqtt_message = mqtt::make_message(TOPIC, message);
+        auto mqtt_message = mqtt::make_message(s_arguments["topic"], message);
         mqtt_message->set_qos(qos);
 
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
         std::vector<std::shared_ptr<mqtt::token> > tokens;
-        tokens.reserve(NUMBER_OF_MESSAGES);
-        auto start_time = std::chrono::steady_clock::now();
+        tokens.reserve(l_arguments["messages"]);
         size_t last_published = 0;
-        for (auto i = 0; i < NUMBER_OF_MESSAGES; ++i) {
+        auto start_time = std::chrono::steady_clock::now();
+
+        for (auto i = 0; i < l_arguments["messages"]; ++i) {
             tokens.push_back(client.publish(mqtt_message));
-            if (tokens.size() - last_published >= BUFFER) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(l_arguments["period"]));
+            if (tokens.size() - last_published >= l_arguments["buffer"]) {
                 // message buffer is full
-                last_published += std::max(BUFFER / 2ull, 1ull);
-                if (last_published >= tokens.size()) {
-                    last_published = tokens.size() - 1;
+                if (s_arguments["debug"] == "True") {
+                    std::cout << last_published << " - published" << std::endl;
                 }
-                if (!tokens[last_published]->wait_for(1000 * TIMEOUT_MULTIPLIER * BUFFER)) {
-                    std::cout << "Timeout waiting for message " << last_published << std::endl;
-                }
+                wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]));
             }
         }
-
         // Wait for all publish tokens to complete
-        if (!tokens.back()->wait_for(1000 * TIMEOUT_MULTIPLIER * BUFFER)) {
+        if (!tokens.back()->wait_for(l_arguments["timeout"])) {
             std::cout << "Timeout waiting for message " << last_published << std::endl;
         }
 
@@ -136,7 +164,7 @@ std::string publish(const std::string &protocol, const std::string &message, int
 }
 
 
-std::vector<std::string> generate_messages(int min_size_in_kb, int max_size_in_kb) {
+std::vector<std::string> generate_messages(long min_size_in_kb, long max_size_in_kb) {
     /**
      * Generate message of specific length from min_size_in_kb to max_size_in_kb. Each new message is twice as big as
      * previos.
@@ -162,7 +190,7 @@ void store_string(const std::string &data) {
      * @data - string to store
      */
 std:
-    std::ofstream outfile(RESULTS_FILE, std::ios_base::app);
+    std::ofstream outfile(s_arguments["output"], std::ios_base::app);
     if (outfile.is_open()) {
         outfile << data << std::endl;
         outfile.close();
@@ -190,21 +218,85 @@ std::string format_output(const std::vector<std::string> &strings) {
     return result;
 }
 
+void print_flags() {
+    /**
+     * Print possible arguments and their usecases
+     */
+    std::cout << "Supported arguments flags:" << std::endl;
+    for (const auto &argument: s_arguments) {
+        if (argument.first == "debug") {
+            std::cout << "  --" << argument.first << std::endl;
+        } else {
+            std::cout << "  --" << argument.first << " <value>" << std::endl;
+        }
+    }
+    for (const auto &argument: l_arguments) {
+        if (argument.first == "debug") {
+            std::cout << "  --" << argument.first << std::endl;
+        } else {
+            std::cout << "  --" << argument.first << " <value>" << std::endl;
+        }
+    }
+}
+
+bool set_parameters(int argc, char *argv[]) {
+    /**
+     * Set all parameter from command line arguments and return True unlless bad argument or 'help' was provided
+     */
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
+            s_arguments["output_file"] = argv[++i];
+        } else if ((arg == "-t" || arg == "--topic") && i + 1 < argc) {
+            s_arguments["topic"] = argv[++i];
+        } else if ((arg == "-c" || arg == "--client_id") && i + 1 < argc) {
+            s_arguments["client_id"] = argv[++i];
+        } else if (arg == "--debug" || arg == "-d") {
+            s_arguments["debug"] = "True";
+        } else if ((arg == "-s" || arg == "--separator") && i + 1 < argc) {
+            s_arguments["separator"] = argv[++i];
+        } else if ((arg == "-p" || arg == "--protocol") && i + 1 < argc) {
+            s_arguments["protocol"] = argv[++i];
+        } else if ((arg == "--period") && i + 1 < argc) {
+            l_arguments["period"] = std::stol(argv[++i]);
+        } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
+            l_arguments["messages"] = std::stol(argv[++i]);
+        } else if ((arg == "-b" || arg == "--buffer") && i + 1 < argc) {
+            l_arguments["buffer"] = std::stol(argv[++i]);
+        } else if ((arg == "-r" || arg == "--repetitions") && i + 1 < argc) {
+            l_arguments["repetitions"] = std::stol(argv[++i]);
+        } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
+            l_arguments["qos"] = std::stol(argv[++i]);
+        } else if ((arg == "--timeout") && i + 1 < argc) {
+            l_arguments["timeout"] = std::stol(argv[++i]);
+        } else if ((arg == "--min") && i + 1 < argc) {
+            l_arguments["min"] = std::stol(argv[++i]);
+        } else if ((arg == "--max") && i + 1 < argc) {
+            l_arguments["max"] = std::stol(argv[++i]);
+        } else if ((arg == "--percentage") && i + 1 < argc) {
+            l_arguments["percentage"] = std::stol(argv[++i]);
+        } else if (arg == "--help" || arg == "-h") {
+            print_flags();
+            return false;
+        } else {
+            std::cerr << "Unknown argument: " << arg << std::endl;
+            print_flags();
+            return false;
+        }
+    }
+    return true;
+}
+
 int main(int argc, char *argv[]) {
-    if (argc < 5) {
-        std::cerr << "Usage: " << argv[0] << " <protocol> <min_size_kb> <max_size_kb> <QoS>" << std::endl;
+    if (!set_parameters(argc, argv)) {
         return 1;
     }
-
-    const std::string protocol = argv[1];
-    const std::vector<std::string> messages = generate_messages(std::stoi(argv[2]), std::stoi(argv[3]));
-    const int qos = std::stoi(argv[4]);
-
+    const std::vector<std::string> messages = generate_messages(l_arguments["min"], l_arguments["max"]);
     std::vector<std::string> measurements;
     measurements.reserve(messages.size());
-    for (int i = 0; i < NUMBER_OF_REPETITIONS; ++i) {
+    for (int i = 0; i < l_arguments["repetitions"]; ++i) {
         for (const auto &message: messages) {
-            measurements.emplace_back(publish(protocol, message, qos));
+            measurements.emplace_back(publish(s_arguments["protocol"], message, static_cast<int>(l_arguments["qos"])));
         }
         store_string(format_output(measurements));
     }
