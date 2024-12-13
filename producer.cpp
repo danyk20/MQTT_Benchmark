@@ -118,10 +118,12 @@ std::string publishMQTT(const std::string &message, int qos) {
         tokens.reserve(l_arguments["messages"]);
         size_t last_published = 0;
         auto start_time = std::chrono::steady_clock::now();
+        auto next_run_time = std::chrono::steady_clock::now();
 
         for (auto i = 0; i < l_arguments["messages"]; ++i) {
+            next_run_time += std::chrono::milliseconds(l_arguments["period"]);
             tokens.push_back(client.publish(mqtt_message));
-            std::this_thread::sleep_for(std::chrono::milliseconds(l_arguments["period"]));
+            //std::this_thread::sleep_for(std::chrono::milliseconds());
             if (tokens.size() - last_published >= l_arguments["buffer"]) {
                 // message buffer is full
                 if (s_arguments["debug"] == "True") {
@@ -129,6 +131,7 @@ std::string publishMQTT(const std::string &message, int qos) {
                 }
                 wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]));
             }
+            std::this_thread::sleep_until(next_run_time);
         }
         // Wait for all publish tokens to complete
         if (!tokens.back()->wait_for(l_arguments["timeout"])) {
