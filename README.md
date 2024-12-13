@@ -83,6 +83,14 @@ e.g. received payload's sizes:
 - 1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0, = 5 separators
 - 1,1,1,1,1,0,0,0,0,,0,,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0, = 4 separators
 
+#### Flags
+
+- `debug` - show debug print after each separator: *False*
+- `separators` - number of separators to consume: *1*
+- `output` - output file: *consumer_results.txt*
+- `topic` - topic to subscribe: *test*
+- `client` - client id: *\<blank>*
+
 ## Visualisation
 
 You can visualise your results using [MQTT Benchmark Plot](https://github.com/danyk20/MQTT_Benchmark_Plot) repo.
