@@ -34,15 +34,15 @@ Publish and consume messages of different payloads and evaluate how long does it
     g++ -o consume consumer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
     ```
 
-3. Run consumer `./consume <number_of_different_sizes>`
+3. Run consumer `./consume`
 
     ```shell
-    ./consumer 14
+    ./consumer --debug --separators 10
     ```
 4. Run producer `./produce <protocol> <min_size_in_kb> <max_size_in_kb> <QoS>`
 
    ```shell
-   ./produce mqtt 1 8192 0
+   ./produce --min 1 --max 1024 --messages 1000 --period 0
     ```
     - Note: This example will send 14 different payload size: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
       8192
