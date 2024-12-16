@@ -1,6 +1,7 @@
 #include <fstream>
 #include <mqtt/client.h>
 #include <ostream>
+#include <filesystem>
 
 constexpr auto CLIENT_ID = "";
 std::map<std::string, std::string> arguments = {

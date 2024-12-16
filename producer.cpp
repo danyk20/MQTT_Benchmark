@@ -6,6 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <filesystem>
 
 std::map<std::string, std::string> s_arguments = {
     {"debug", "False"}, // debug print
