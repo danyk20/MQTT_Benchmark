@@ -57,7 +57,7 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
     long number_of_messages = l_arguments["messages"];
     auto end_time = std::chrono::steady_clock::now();
     auto duration = end_time - start_time;
-    auto message_per_seconds = number_of_messages / (duration.count() / 1000000000);
+    auto message_per_seconds = 1000000000ull * number_of_messages / duration.count();
     auto throughput = message_per_seconds * payload_size;
 
 

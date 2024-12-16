@@ -60,8 +60,8 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, long long
      */
     const std::chrono::steady_clock::time_point end_time = std::chrono::steady_clock::now();
     const auto duration = end_time - start_time;
-    const auto throughput = received_messages * current_size / (duration.count() / 1000000000);
-    const auto message_per_seconds = received_messages / (duration.count() / 1000000000);
+    const auto message_per_seconds = 1000000000ull * received_messages / duration.count();
+    const auto throughput = message_per_seconds * current_size;
     const std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
                                     "," + std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
     if (arguments["debug"] == "True") {
