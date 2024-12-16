@@ -21,12 +21,24 @@ std::map<std::string, long> l_arguments = {
     {"messages", 400},
     {"buffer", 100}, // max number of messages in the buffer
     {"repetitions", 1},
-    {"timeout", 5000}, // wait timeout in ms
+    {"timeout", 3}, // wait timeout in ms per message per 1KB payload
     {"qos", 1},
     {"min", 72}, // minimum payload size in KB
     {"max", 72}, // maximum payload size in KB
     {"percentage", 50}
 };
+
+long get_timeout(const size_t payload) {
+    /**
+     * @ payload size in B
+     * Returns timeout which is 1s or more based on Buffer size and payload size
+     */
+    long timeout = l_arguments["timeout"] * l_arguments["buffer"] * static_cast<long>(payload / 1024);
+    if (timeout < 5000) {
+        return 5000;
+    }
+    return timeout;
+}
 
 void publish_separator(mqtt::async_client *client, const bool disconnect = false) {
     /**
@@ -37,11 +49,11 @@ void publish_separator(mqtt::async_client *client, const bool disconnect = false
     const std::string empty_message;
     const auto msg = mqtt::make_message(s_arguments["topic"], empty_message);
     msg->set_qos(1);
-    if (!client->publish(msg)->wait_for(l_arguments["timeout"])) {
+    if (!client->publish(msg)->wait_for(get_timeout(0))) {
         std::cerr << "publishing of separator failed" << std::endl;
     }
     if (disconnect) {
-        client->disconnect()->wait_for(l_arguments["timeout"]);
+        client->disconnect()->wait_for(get_timeout(0));
     }
 }
 
@@ -70,15 +82,15 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
            std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
 }
 
-void wait_for_buffer_dump(std::vector<std::shared_ptr<mqtt::token> > tokens, size_t &last_published,
-                          int percentage) {
+void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
+                          int percentage, size_t payload_size) {
     unsigned long long available_buffer = 100ull / percentage;
     last_published += std::max(l_arguments["buffer"] / available_buffer, 1ull);
     if (last_published >= tokens.size()) {
         last_published = tokens.size() - 1;
     }
-    if (!tokens[last_published]->wait_for(l_arguments["timeout"])) {
-        std::cout << "Timeout waiting for message " << last_published << std::endl;
+    if (!tokens[last_published]->wait_for(get_timeout(payload_size))) {
+        std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << last_published << std::endl;
     }
 }
 
@@ -102,7 +114,7 @@ std::string publishMQTT(const std::string &message, int qos) {
             .clean_session()
             .finalize();
     try {
-        if (!client.connect(connOpts)->wait_for(l_arguments["timeout"])) {
+        if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
             std::cerr << "connect failed - timeout" << std::endl;
         }
 
@@ -129,13 +141,14 @@ std::string publishMQTT(const std::string &message, int qos) {
                 if (s_arguments["debug"] == "True") {
                     std::cout << last_published << " - published" << std::endl;
                 }
-                wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]));
+                wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]),
+                                     message.size());
             }
             std::this_thread::sleep_until(next_run_time);
         }
         // Wait for all publish tokens to complete
-        if (!tokens.back()->wait_for(l_arguments["timeout"])) {
-            std::cout << "Timeout waiting for message " << last_published << std::endl;
+        if (!tokens.back()->wait_for(get_timeout(message.size()))) {
+            std::cout << get_timeout(message.size()) << " timeout waiting for message " << last_published << std::endl;
         }
 
         auto payload_size = message.size();
