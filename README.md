@@ -4,6 +4,11 @@ Publish and consume messages of different payloads and evaluate how long does it
 
 ## Prerequisites
 
+- Install cmake
+- ```shell
+   sudo dnf install -y cmake
+   ```
+
 - Install [eclipsie-paho](https://github.com/eclipse-paho/paho.mqtt.cpp)
 - ```shell
    git clone https://github.com/eclipse/paho.mqtt.cpp
@@ -13,7 +18,16 @@ Publish and consume messages of different payloads and evaluate how long does it
    git submodule update
    cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
    sudo cmake --build build/ --target install
+   cd ..
    ```
+
+- Install Docker
+- ```shell
+   sudo dnf install -y yum-utils  
+   sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+   sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+   ```
+
 - Setup MQTT broker
 -  ```shell
    docker build -t rabbitmq-benchmark:0.0.1 .
