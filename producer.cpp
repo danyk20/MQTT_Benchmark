@@ -66,11 +66,17 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
      * @start_time - when start sending of the first payload
      * @payload_size - how big was each payload
      */
-    long number_of_messages = l_arguments["messages"];
+    int number_of_messages = static_cast<int>(l_arguments["messages"]);
     auto end_time = std::chrono::steady_clock::now();
-    auto duration = end_time - start_time;
-    auto message_per_seconds = 1000000000ull * number_of_messages / duration.count();
-    auto throughput = message_per_seconds * payload_size;
+    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time) / 1000.0;
+    const auto message_per_seconds = number_of_messages / duration.count();
+    const auto throughput = message_per_seconds * static_cast<double>(payload_size);
+    const std::string measurement = "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + ","
+                                    + std::to_string(static_cast<int>(throughput)) + "," +
+                                    std::to_string(static_cast<int>(message_per_seconds)) + "]";
+    if (s_arguments["debug"] == "True") {
+        std::cout << measurement << " - " << duration.count() << "ms" << std::endl;
+    }
 
 
     if (s_arguments["debug"] == "True") {

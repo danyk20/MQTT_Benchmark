@@ -47,7 +47,7 @@ std::string format_output(const std::vector<std::string> &strings) {
     return result;
 }
 
-void add_measurement(std::chrono::steady_clock::time_point start_time, long long received_messages, size_t current_size,
+void add_measurement(std::chrono::steady_clock::time_point start_time, int received_messages, size_t current_size,
                      std::vector<std::string> *measurements) {
     /*
      * Add measurement as string into given vector of measurements. Format of single measurement is following :
@@ -59,13 +59,14 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, long long
      * @measurements - vector of previous measurements
      */
     const std::chrono::steady_clock::time_point end_time = std::chrono::steady_clock::now();
-    const auto duration = end_time - start_time;
-    const auto message_per_seconds = 1000000000ull * received_messages / duration.count();
-    const auto throughput = message_per_seconds * current_size;
-    const std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) +
-                                    "," + std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
+    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time) / 1000.0;
+    const auto message_per_seconds = received_messages / duration.count();
+    const auto throughput = message_per_seconds * static_cast<double>(current_size);
+    const std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) + ","
+                                    + std::to_string(static_cast<int>(throughput)) + "," +
+                                    std::to_string(static_cast<int>(message_per_seconds)) + "]";
     if (arguments["debug"] == "True") {
-        std::cout << measurement << " - " << duration.count() << std::endl;
+        std::cout << measurement << " - " << duration.count() << "ms" << std::endl;
     }
     measurements->push_back(measurement);
 }
@@ -84,7 +85,7 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     return client;
 }
 
-bool process_payload(long long &received_messages, size_t &current_size,
+bool process_payload(int &received_messages, size_t &current_size,
                      const mqtt::const_message_ptr &message_pointer) {
     /**
      * Read message size and update message counter. Empty message is considered as separator.
@@ -153,7 +154,7 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
      * separators are counted as single separator.
      */
     auto start_time = std::chrono::steady_clock::now();
-    long long received_messages = 0;
+    int received_messages = 0;
     size_t current_size = 0;
     std::vector<std::string> measurements;
     mqtt::const_message_ptr messagePointer;
