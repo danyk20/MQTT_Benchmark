@@ -36,9 +36,15 @@ Publish and consume messages of different payloads and evaluate how long does it
 
 ## Compilation
 
+0. Clone project
+   ```shell
+   git clone https://github.com/danyk20/MQTT_Benchmark.git
+   cd MQTT_Benchmark
+   ```
+
 1. Export environment variables
     ```shell
-    BROKER_IP=<broker_ip> MQTT_PORT=<broker_port> DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
+    export BROKER_IP=<broker_ip> MQTT_PORT=<broker_port> DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
     ```
 
 2. Compile sources
