@@ -8,7 +8,9 @@ std::map<std::string, std::string> arguments = {
     {"separators", "1"}, // number of different message payloads sizes (except separator)
     {"output_file", "consumer_results.txt"},
     {"topic", "test"},
-    {"client_id", ""}
+    {"client_id", ""},
+    {"consumers", "1"},
+    {"qos", "1"}
 };
 
 void store_string(const std::string &data) {
@@ -17,8 +19,9 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::ofstream outfile(arguments["output_file"], std::ios_base::app);
-
+    std::string path = "data/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments["output_file"];
+    create_directories(std::filesystem::path(path).parent_path());
+    std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {
         outfile << data << std::endl;
         outfile.close();
@@ -134,6 +137,10 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["topic"] = argv[++i];
         } else if ((arg == "-c" || arg == "--client_id") && i + 1 < argc) {
             arguments["client_id"] = argv[++i];
+        } else if ((arg == "--consumers") && i + 1 < argc) {
+            arguments["consumers"] = argv[++i];
+        } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
+            arguments["qos"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             arguments["debug"] = "True";
         } else if (arg == "--help" || arg == "-h") {

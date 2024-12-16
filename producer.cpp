@@ -25,7 +25,8 @@ std::map<std::string, long> l_arguments = {
     {"qos", 1},
     {"min", 72}, // minimum payload size in KB
     {"max", 72}, // maximum payload size in KB
-    {"percentage", 50}
+    {"percentage", 50},
+    {"consumers", 1}
 };
 
 long get_timeout(const size_t payload) {
@@ -211,8 +212,10 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-std:
-    std::ofstream outfile(s_arguments["output"], std::ios_base::app);
+    std::string path = "data/" + std::to_string(l_arguments["qos"]) + "/" + std::to_string(l_arguments["consumers"]) +
+                       s_arguments["output"];
+    create_directories(std::filesystem::path(path).parent_path());
+    std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {
         outfile << data << std::endl;
         outfile.close();
@@ -297,6 +300,8 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["max"] = std::stol(argv[++i]);
         } else if ((arg == "--percentage") && i + 1 < argc) {
             l_arguments["percentage"] = std::stol(argv[++i]);
+        } else if ((arg == "--consumers") && i + 1 < argc) {
+            l_arguments["consumers"] = std::stol(argv[++i]);
         } else if (arg == "--help" || arg == "-h") {
             print_flags();
             return false;
