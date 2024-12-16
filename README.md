@@ -21,22 +21,24 @@ Publish and consume messages of different payloads and evaluate how long does it
    cd ..
    ```
 
-- Install Docker
+- Install & run Docker
 - ```shell
    sudo dnf install -y yum-utils  
    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
    sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+   sudo systemctl start docker
+   sudo systemctl enable docker
    ```
 
 - Setup MQTT broker
 -  ```shell
-   docker build -t rabbitmq-benchmark:0.0.1 .
-   docker run --rm -it -d --name rabbitmq -p 1883:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
+   sudo docker build -t rabbitmq-benchmark:0.0.1 .
+   sudo docker run --rm -it -d --name rabbitmq -p 1883:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
    ```
 
 ## Compilation
 
-0. Clone project
+0. Clone & open project
    ```shell
    git clone https://github.com/danyk20/MQTT_Benchmark.git
    cd MQTT_Benchmark
