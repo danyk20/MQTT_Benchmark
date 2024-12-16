@@ -59,7 +59,7 @@ Publish and consume messages of different payloads and evaluate how long does it
 3. Run consumer `./consume`
 
     ```shell
-    ./consumer --debug --separators 10
+    ./consume --debug --separators 10
     ```
 4. Run producer `./produce <protocol> <min_size_in_kb> <max_size_in_kb> <QoS>`
 
