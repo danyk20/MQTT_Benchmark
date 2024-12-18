@@ -70,7 +70,7 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, int recei
                                     + std::to_string(static_cast<int>(throughput)) + "," +
                                     std::to_string(static_cast<int>(message_per_seconds)) + "]";
     if (arguments["debug"] == "True") {
-        std::cout << measurement << " - " << duration.count() << "ms" << std::endl;
+        std::cout << measurement << " - " << duration.count() << "s" << std::endl;
     }
     measurements->push_back(measurement);
 }
