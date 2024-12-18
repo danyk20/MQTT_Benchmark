@@ -9,6 +9,17 @@ Publish and consume messages of different payloads and evaluate how long does it
    sudo dnf install -y cmake
    ```
 
+- Install Compiler
+- ```shell
+   sudo dnf groupinstall -y "Development Tools"
+   sudo dnf install -y gcc gcc-c++
+   ```
+
+- Install OpenSSL
+- ```shell
+   sudo dnf install -y openssl-devel
+   ```
+
 - Install [eclipsie-paho](https://github.com/eclipse-paho/paho.mqtt.cpp)
 - ```shell
    git clone https://github.com/eclipse/paho.mqtt.cpp
@@ -59,7 +70,7 @@ Publish and consume messages of different payloads and evaluate how long does it
 3. Run consumer `./consume`
 
     ```shell
-    ./consume --debug --separators 10
+    ./consume --debug --separators 11
     ```
 4. Run producer `./produce <protocol> <min_size_in_kb> <max_size_in_kb> <QoS>`
 
