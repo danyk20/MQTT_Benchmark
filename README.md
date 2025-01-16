@@ -123,6 +123,7 @@ increases, but so does the complexity of the transmission process.
 - `messages` - number of messages that will send per each payload size *400*
 - `period` - minimum delay between 2 messages *80*ms
 - `percentage` - once is buffer full wait until buffer is less than percentage % full *50*
+- `consumers` - number of consumers involved (used as filename prefix): *\1*
 
 ### Consumer
 
@@ -142,6 +143,7 @@ e.g. received payload's sizes:
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*
 - `client` - client id: *\<blank>*
+- `consumers` - number of consumers involved (used for storage structure): *\1* 
 
 ## Visualisation
 
