@@ -113,7 +113,7 @@ increases, but so does the complexity of the transmission process.
 - `separator` - send separator after last message of each payload batch *True*
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*
-- `client` - client id: *\<blank>*
+- `client_id` - client id: *\<blank>*
 - `min` - minimum payload size *72*KB
 - `max` - minimum payload size *72*KB
 - `qos` - QoS *1*
@@ -142,7 +142,7 @@ e.g. received payload's sizes:
 - `separators` - number of separators to consume: *1*
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*
-- `client` - client id: *\<blank>*
+- `client_id` - client id: *\<blank>*
 - `consumers` - number of consumers involved (used for storage structure): *\1* 
 
 ## Visualisation
