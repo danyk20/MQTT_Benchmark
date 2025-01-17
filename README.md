@@ -124,6 +124,7 @@ increases, but so does the complexity of the transmission process.
 - `period` - minimum delay between 2 messages *80*ms
 - `percentage` - once is buffer full wait until buffer is less than percentage % full *50*
 - `consumers` - number of consumers involved (used as filename prefix): *\1*
+- `version` - protocol version: *\3.1.1*
 
 ### Consumer
 
@@ -144,6 +145,7 @@ e.g. received payload's sizes:
 - `topic` - topic to subscribe: *test*
 - `client_id` - client id: *\<blank>*
 - `consumers` - number of consumers involved (used for storage structure): *\1* 
+- `version` - protocol version: *\3.1.1*
 
 ## Visualisation
 

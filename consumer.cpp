@@ -11,7 +11,8 @@ std::map<std::string, std::string> arguments = {
     {"topic", "test"},
     {"client_id", ""},
     {"consumers", "1"},
-    {"qos", "1"}
+    {"qos", "1"},
+    {"version", "3.1.1"}
 };
 
 void store_string(const std::string &data) {
@@ -75,6 +76,21 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, int recei
     measurements->push_back(measurement);
 }
 
+int get_mqtt_version(const std::string &user_input) {
+    int version = 0;
+    if (user_input == "3.1") {
+        version = MQTTVERSION_3_1;
+    } else if (user_input == "3.1.1") {
+        version = MQTTVERSION_3_1_1;
+    } else if (user_input == "5.0") {
+        version = MQTTVERSION_5;
+    } else {
+        std::cerr << "Unsupported MQTT version: " << user_input << std::endl;
+        std::cerr << "Using default one: " << std::endl;
+    }
+    return version;
+}
+
 std::unique_ptr<mqtt::client> prepare_consumer() {
     /**
      * Create connection to the broker and subsribe to the topic based on global constants and enviromental variables
@@ -82,7 +98,9 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
     std::string broker = brokerAddress + ":" + std::to_string(brokerPort);
-    auto client = std::make_unique<mqtt::client>(broker, CLIENT_ID, mqtt::create_options(MQTTVERSION_5));
+
+    auto client = std::make_unique<mqtt::client>(broker, CLIENT_ID,
+                                                 mqtt::create_options(get_mqtt_version(arguments["version"])));
     client->connect();
     client->subscribe(arguments["topic"]);
     client->start_consuming();
@@ -102,6 +120,7 @@ bool process_payload(int &received_messages, size_t &current_size,
      * returns True only if the message is empty
      */
     const std::string messageString = message_pointer->get_payload_str();
+    // std::cout << messageString << std::endl;
     if (messageString.empty()) {
         return true;
     }

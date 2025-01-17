@@ -14,7 +14,8 @@ std::map<std::string, std::string> s_arguments = {
     {"output", "producer_results.txt"},
     {"topic", "test"}, // subscribed topic
     {"client_id", ""},
-    {"protocol", "MQTT"} //
+    {"protocol", "MQTT"}, //
+    {"version", "3.1.1"}
 };
 
 std::map<std::string, long> l_arguments = {
@@ -102,6 +103,21 @@ void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
     }
 }
 
+int get_mqtt_version(const std::string &user_input) {
+    int version = 0;
+    if (user_input == "3.1") {
+        version = MQTTVERSION_3_1;
+    } else if (user_input == "3.1.1") {
+        version = MQTTVERSION_3_1_1;
+    } else if (user_input == "5.0") {
+        version = MQTTVERSION_5;
+    } else {
+        std::cerr << "Unsupported MQTT version: " << user_input << std::endl;
+        std::cerr << "Using default one: " << std::endl;
+    }
+    return version;
+}
+
 std::string publishMQTT(const std::string &message, int qos) {
     /**
      * Send messages asynchronously and measure that time. After sending all messages send one empty payload and close
@@ -120,6 +136,7 @@ std::string publishMQTT(const std::string &message, int qos) {
 
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
+            .mqtt_version(get_mqtt_version(s_arguments["version"]))
             .finalize();
     try {
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
