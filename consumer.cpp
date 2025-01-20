@@ -101,7 +101,7 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     auto client = std::make_unique<mqtt::client>(broker, arguments["client_id"],
                                                  mqtt::create_options(get_mqtt_version(arguments["version"])));
     client->connect();
-    client->subscribe(arguments["topic"]);
+    client->subscribe(arguments["topic"],std::stoi(arguments["qos"]));
     client->start_consuming();
     return client;
 }
