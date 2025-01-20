@@ -320,6 +320,8 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["percentage"] = std::stol(argv[++i]);
         } else if ((arg == "--consumers") && i + 1 < argc) {
             l_arguments["consumers"] = std::stol(argv[++i]);
+        } else if ((arg == "--version") && i + 1 < argc) {
+            l_arguments["version"] = std::stol(argv[++i]);
         } else if (arg == "--help" || arg == "-h") {
             print_flags();
             return false;
