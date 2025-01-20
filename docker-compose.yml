@@ -1,0 +1,22 @@
+version: '3'
+services:
+  rabbitmq:
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
+    image: rabbitmq-benchmark:0.0.1
+    ports:
+      - 1888:1888
+      - 5672:5672
+      - 15672:15672
+  emqx:
+    build:
+      context: ./emqx
+      dockerfile: Dockerfile
+    image: emqx-benchmark:0.0.1
+    ports:
+      - 1883:1883
+      - 8083:8083
+      - 8084:8084
+      - 8883:8883
+      - 18083:18083

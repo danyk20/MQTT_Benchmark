@@ -41,10 +41,9 @@ Publish and consume messages of different payloads and evaluate how long does it
    sudo systemctl enable docker
    ```
 
-- Setup MQTT broker
+- Setup MQTT brokers
 -  ```shell
-   sudo docker build -t rabbitmq-benchmark:0.0.1 .
-   sudo docker run --rm -it -d --name rabbitmq -p 1883:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
+   docker-compose up --build
    ```
 
 ## Compilation
