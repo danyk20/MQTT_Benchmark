@@ -300,6 +300,8 @@ bool set_parameters(int argc, char *argv[]) {
             s_arguments["separator"] = argv[++i];
         } else if ((arg == "-p" || arg == "--protocol") && i + 1 < argc) {
             s_arguments["protocol"] = argv[++i];
+        } else if ((arg == "--version") && i + 1 < argc) {
+            s_arguments["version"] = argv[++i];
         } else if ((arg == "--period") && i + 1 < argc) {
             l_arguments["period"] = std::stol(argv[++i]);
         } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
@@ -320,8 +322,6 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["percentage"] = std::stol(argv[++i]);
         } else if ((arg == "--consumers") && i + 1 < argc) {
             l_arguments["consumers"] = std::stol(argv[++i]);
-        } else if ((arg == "--version") && i + 1 < argc) {
-            l_arguments["version"] = std::stol(argv[++i]);
         } else if (arg == "--help" || arg == "-h") {
             print_flags();
             return false;

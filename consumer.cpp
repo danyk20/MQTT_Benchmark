@@ -163,6 +163,8 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["qos"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             arguments["debug"] = "True";
+        } else if ((arg == "--version") && i + 1 < argc) {
+            arguments["version"] = argv[++i];
         } else if (arg == "--help" || arg == "-h") {
             print_flags();
             return false;
