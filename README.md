@@ -41,10 +41,19 @@ Publish and consume messages of different payloads and evaluate how long does it
    sudo systemctl enable docker
    ```
 
-- Setup MQTT brokers
--  ```shell
-   docker-compose up --build
-   ```
+- Setup MQTT brokers with Docker Compose
+
+a) -  ```shell
+      docker-compose up --build
+      ```
+
+b) -  ```shell
+      sudo docker build -t rabbitmq-benchmark:0.0.1 ./rabbitmq
+      sudo docker run --rm -it -d --name rabbitmq -p 1883:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
+      sudo docker build -t emqx:0.0.1 ./emqx
+      sudo docker run --rm -it -d --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx:0.0.1
+      ```
+
 
 ## Compilation
 
