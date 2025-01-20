@@ -131,7 +131,7 @@ std::string publishMQTT(const std::string &message, int qos) {
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
 
-    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["user_id"],
+    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["client_id"],
                               static_cast<int>(l_arguments["buffer"]));
 
     auto connOpts = mqtt::connect_options_builder()
@@ -147,8 +147,7 @@ std::string publishMQTT(const std::string &message, int qos) {
         publish_separator(&client);
 
         // Pre-create the message to minimize allocation overhead
-        auto mqtt_message = mqtt::make_message(s_arguments["topic"], message);
-        mqtt_message->set_qos(qos);
+        auto mqtt_message = mqtt::make_message(s_arguments["topic"], message, qos, false);
 
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
         std::vector<std::shared_ptr<mqtt::token> > tokens;

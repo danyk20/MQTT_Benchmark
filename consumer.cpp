@@ -3,7 +3,6 @@
 #include <ostream>
 #include <filesystem>
 
-constexpr auto CLIENT_ID = "";
 std::map<std::string, std::string> arguments = {
     {"debug", "False"}, // debug print
     {"separators", "1"}, // number of different message payloads sizes (except separator)
@@ -99,7 +98,7 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
     std::string broker = brokerAddress + ":" + std::to_string(brokerPort);
 
-    auto client = std::make_unique<mqtt::client>(broker, CLIENT_ID,
+    auto client = std::make_unique<mqtt::client>(broker, arguments["client_id"],
                                                  mqtt::create_options(get_mqtt_version(arguments["version"])));
     client->connect();
     client->subscribe(arguments["topic"]);
