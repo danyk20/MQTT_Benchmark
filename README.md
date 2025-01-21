@@ -80,10 +80,10 @@ b) -  ```shell
     ```shell
     ./consume --debug --separators 11
     ```
-4. Run producer `./produce <protocol> <min_size_in_kb> <max_size_in_kb> <QoS>`
+4. Run producer `./produce --min <min_size_in_kb> --max <max_size_in_kb> --qos <QoS>`
 
    ```shell
-   ./produce --min 1 --max 1024 --messages 1000 --period 0
+   ./produce --min 1 --max 1024 --qos 1
     ```
     - Note: This example will send 14 different payload size: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
       8192
@@ -124,7 +124,7 @@ increases, but so does the complexity of the transmission process.
 - `client_id` - client id: *\<blank>*
 - `min` - minimum payload size *72*KB
 - `max` - minimum payload size *72*KB
-- `qos` - QoS *1*
+- `qos` - QoS list of more values separated by comma *1*
 - `timeout` - timeout for wait() *5000*ms
 - `repetitions` - number of times to run the script *1*
 - `buffer` - max number of messages that can stored in the buffer *100*
@@ -154,6 +154,7 @@ e.g. received payload's sizes:
 - `client_id` - client id: *\<blank>*
 - `consumers` - number of consumers involved (used for storage structure): *\1* 
 - `version` - protocol version: *\3.1.1*
+- `qos` - QoS list of more values separated by comma *1*
 
 ## Visualisation
 

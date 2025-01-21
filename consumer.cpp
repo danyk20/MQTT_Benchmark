@@ -11,6 +11,7 @@ std::map<std::string, std::string> arguments = {
     {"client_id", ""},
     {"consumers", "1"},
     {"qos", "1"},
+    {"qos_input", "1"},
     {"version", "3.1.1"}
 };
 
@@ -159,7 +160,7 @@ bool set_parameters(int argc, char *argv[]) {
         } else if ((arg == "--consumers") && i + 1 < argc) {
             arguments["consumers"] = argv[++i];
         } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
-            arguments["qos"] = argv[++i];
+            arguments["qos_input"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             arguments["debug"] = "True";
         } else if ((arg == "--version") && i + 1 < argc) {
@@ -202,11 +203,26 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
     store_string(format_output(measurements)); // save all measured data into file
 }
 
+std::vector<int> parseQoS(const std::string& input) {
+    std::vector<int> numbers;
+    std::stringstream ss(input);
+    std::string temp;
+
+    while (std::getline(ss, temp, ',')) {
+        numbers.push_back(std::stoi(temp));
+    }
+
+    return numbers;
+}
+
 int main(int argc, char *argv[]) {
     if (!set_parameters(argc, argv)) {
         return 1;
     }
     const auto client = prepare_consumer().release();
-    consume(client);
+    for (const auto& qos : parseQoS(arguments["qos_input"])) {
+        arguments["qos"] = std::to_string(qos);
+        consume(client);
+    }
     return 0;
 }

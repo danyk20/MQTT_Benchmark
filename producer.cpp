@@ -15,7 +15,8 @@ std::map<std::string, std::string> s_arguments = {
     {"topic", "test"}, // subscribed topic
     {"client_id", ""},
     {"protocol", "MQTT"}, //
-    {"version", "3.1.1"}
+    {"version", "3.1.1"},
+    {"qos", "1"}
 };
 
 std::map<std::string, long> l_arguments = {
@@ -30,6 +31,18 @@ std::map<std::string, long> l_arguments = {
     {"percentage", 50},
     {"consumers", 1}
 };
+
+std::vector<int> parseQoS(const std::string& input) {
+    std::vector<int> numbers;
+    std::stringstream ss(input);
+    std::string temp;
+
+    while (std::getline(ss, temp, ',')) {
+        numbers.push_back(std::stoi(temp));
+    }
+
+    return numbers;
+}
 
 long get_timeout(const size_t payload) {
     /**
@@ -301,6 +314,8 @@ bool set_parameters(int argc, char *argv[]) {
             s_arguments["protocol"] = argv[++i];
         } else if ((arg == "--version") && i + 1 < argc) {
             s_arguments["version"] = argv[++i];
+        } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
+            s_arguments["qos"] =argv[++i];
         } else if ((arg == "--period") && i + 1 < argc) {
             l_arguments["period"] = std::stol(argv[++i]);
         } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
@@ -309,8 +324,6 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["buffer"] = std::stol(argv[++i]);
         } else if ((arg == "-r" || arg == "--repetitions") && i + 1 < argc) {
             l_arguments["repetitions"] = std::stol(argv[++i]);
-        } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
-            l_arguments["qos"] = std::stol(argv[++i]);
         } else if ((arg == "--timeout") && i + 1 < argc) {
             l_arguments["timeout"] = std::stol(argv[++i]);
         } else if ((arg == "--min") && i + 1 < argc) {
@@ -340,11 +353,14 @@ int main(int argc, char *argv[]) {
     const std::vector<std::string> messages = generate_messages(l_arguments["min"], l_arguments["max"]);
     std::vector<std::string> measurements;
     measurements.reserve(messages.size());
-    for (int i = 0; i < l_arguments["repetitions"]; ++i) {
-        for (const auto &message: messages) {
-            measurements.emplace_back(publish(s_arguments["protocol"], message, static_cast<int>(l_arguments["qos"])));
+    for (const auto& qos : parseQoS(s_arguments["qos"])) {
+        l_arguments["qos"] = qos;
+        for (int i = 0; i < l_arguments["repetitions"]; ++i) {
+            for (const auto &message: messages) {
+                measurements.emplace_back(publish(s_arguments["protocol"], message, static_cast<int>(l_arguments["qos"])));
+            }
+            store_string(format_output(measurements));
         }
-        store_string(format_output(measurements));
     }
     return 0;
 }
