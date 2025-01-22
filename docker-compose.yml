@@ -5,9 +5,6 @@ services:
       context: ./rabbitmq
       dockerfile: Dockerfile
     image: rabbitmq-benchmark:0.0.1
-    deploy:
-      mode: replicated
-      replicas: 2
     ports:
       - 1888:1888
       - 5672:5672
@@ -17,9 +14,6 @@ services:
       context: ./emqx
       dockerfile: Dockerfile
     image: emqx-benchmark:0.0.1
-    deploy:
-      mode: replicated
-      replicas: 2
     ports:
       - 1883:1883
       - 8083:8083
