@@ -54,7 +54,6 @@ b) -  ```shell
       sudo docker run --rm -it -d --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx:0.0.1
       ```
 
-
 ## Compilation
 
 0. Clone & open project
@@ -65,7 +64,7 @@ b) -  ```shell
 
 1. Export environment variables
     ```shell
-    export BROKER_IP=<broker_ip> MQTT_PORT=<broker_port> DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
+    export DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH BROKER_IP=<broker_ip> MQTT_PORT=<broker_port>
     ```
 
 2. Compile sources
@@ -75,15 +74,17 @@ b) -  ```shell
     g++ -o consume consumer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
     ```
 
-3. Run consumer `./consume`
+3. Run consumer
+   `./consume --separators <number_of_measurements> --output <file_name> --consumers <number_of_consumers> --qos <QoS>`
 
     ```shell
-    ./consume --debug --separators 11
+    ./consume --separators 11 --output consumer_93.txt --consumers 1 --qos 0
     ```
-4. Run producer `./produce --min <min_size_in_kb> --max <max_size_in_kb> --qos <QoS>`
+4. Run producer
+   `./produce --min <min_size_in_kb> --max <max_size_in_kb> --messages <number_of_messages> --period <delay_in_ms> --qos <QoS>`
 
    ```shell
-   ./produce --min 1 --max 1024 --qos 1
+   ./produce --period 0 --min 1 --max 1024 --messages 1000 --qos 1
     ```
     - Note: This example will send 14 different payload size: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
       8192
@@ -114,6 +115,7 @@ delivered exactly once without duplication. As the QoS level increases, the reli
 increases, but so does the complexity of the transmission process.
 
 #### Flags
+
 };
 
 - `debug` - print debug print when buffer reach the limit: *False*
@@ -152,7 +154,7 @@ e.g. received payload's sizes:
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*
 - `client_id` - client id: *\<blank>*
-- `consumers` - number of consumers involved (used for storage structure): *\1* 
+- `consumers` - number of consumers involved (used for storage structure): *\1*
 - `version` - protocol version: *\3.1.1*
 - `qos` - QoS list of more values separated by comma *1*
 
