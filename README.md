@@ -44,7 +44,7 @@ Publish and consume messages of different payloads and evaluate how long does it
 - Setup MQTT brokers with Docker Compose
 
 a) -  ```shell
-      docker-compose up --build
+      sudo docker compose up --build --detach
       ```
 
 b) -  ```shell
