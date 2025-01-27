@@ -24,15 +24,24 @@ std::map<std::string, long> l_arguments = {
     {"messages", 400},
     {"buffer", 100}, // max number of messages in the buffer
     {"repetitions", 1},
-    {"timeout", 3}, // wait timeout in ms per message per 1KB payload
+    {"timeout", 5}, // wait timeout in ms per message per 1KB payload
     {"qos", 1},
     {"min", 72}, // minimum payload size in KB
     {"max", 72}, // maximum payload size in KB
-    {"percentage", 50},
-    {"consumers", 1}
+    {"percentage", 50}, // % between 1 and 100 buffer window size
+    {"consumers", 1},
+    {"duration", 60}, // in seconds
+    {"middle", 50} // % between 1 and 100 duration of measurement
 };
 
-std::vector<int> parseQoS(const std::string& input) {
+std::vector<int> parseQoS(const std::string &input) {
+    /**
+     * @ input string input from the user
+     *
+     * supported are single valid QoS values or list of valid values separed by comma
+     *
+     * Returns list of QoS as int values
+     */
     std::vector<int> numbers;
     std::stringstream ss(input);
     std::string temp;
@@ -56,7 +65,7 @@ long get_timeout(const size_t payload) {
     return timeout;
 }
 
-void publish_separator(mqtt::async_client *client, const bool disconnect = false) {
+void publish_separator(mqtt::async_client &client, const bool disconnect = false) {
     /**
      * Send empty paylod as a separator for time measurment on the consumer and disconnect from the broker
      *
@@ -65,39 +74,40 @@ void publish_separator(mqtt::async_client *client, const bool disconnect = false
     const std::string empty_message;
     const auto msg = mqtt::make_message(s_arguments["topic"], empty_message);
     msg->set_qos(1);
-    if (!client->publish(msg)->wait_for(get_timeout(0))) {
+    if (!client.publish(msg)->wait_for(get_timeout(0))) {
         std::cerr << "publishing of separator failed" << std::endl;
     }
     if (disconnect) {
-        client->disconnect()->wait_for(get_timeout(0));
+        client.disconnect()->wait_for(get_timeout(0));
     }
 }
 
 std::string process_measurement(std::chrono::steady_clock::time_point start_time,
-                                std::vector<std::shared_ptr<mqtt::message> >::size_type payload_size) {
+                                std::vector<std::shared_ptr<mqtt::message> >::size_type payload_size,
+                                size_t number_of_messages) {
     /**
      * Calculate all attributes from the measuremnt and return them in a string of following format:
      * [number_of_messages,single-message_size,B/s,number_of_message/s]
      *
      * @start_time - when start sending of the first payload
      * @payload_size - how big was each payload
+     * @number_of_messages - number of published messages
      */
-    int number_of_messages = static_cast<int>(l_arguments["messages"]);
     auto end_time = std::chrono::steady_clock::now();
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time) / 1000.0;
-    const auto message_per_seconds = number_of_messages / duration.count();
+    const auto message_per_seconds = static_cast<int>(number_of_messages) / duration.count();
     const auto throughput = message_per_seconds * static_cast<double>(payload_size);
     const std::string measurement = "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + ","
                                     + std::to_string(static_cast<int>(throughput)) + "," +
                                     std::to_string(static_cast<int>(message_per_seconds)) + "]";
     if (s_arguments["debug"] == "True") {
-        std::cout << measurement << " - " << duration.count() << "ms" << std::endl;
+        std::cout << measurement << " - " << duration.count() << "s" << std::endl;
     }
 
 
     if (s_arguments["debug"] == "True") {
         std::cout << "Sent " << number_of_messages << " messages of size " << payload_size
-                << " bytes to topic '" << s_arguments["topic"] << "' in " << duration.count() << "ns" << std::endl;
+                << " bytes to topic '" << s_arguments["topic"] << "' in " << duration.count() << " s" << std::endl;
     }
 
     return "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + "," +
@@ -106,6 +116,14 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
 
 void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
                           int percentage, size_t payload_size) {
+    /**
+    * @ tokens list of all tokens for messages that have been already sent asynchronously
+    * @ last_published index of the last confirmed token (message has been sent) from the tokens list
+    * @ percentage size of the full baffer that is reaquired to be free
+    * @ payload_size message size
+    *
+    * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
+    */
     unsigned long long available_buffer = 100ull / percentage;
     last_published += std::max(l_arguments["buffer"] / available_buffer, 1ull);
     if (last_published >= tokens.size()) {
@@ -117,6 +135,13 @@ void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
 }
 
 int get_mqtt_version(const std::string &user_input) {
+    /**
+    * @ user_input string input from the user
+    *
+    * supported are all valid version with dot notation
+    *
+    * Returns valid MQTT version as int
+    */
     int version = 0;
     if (user_input == "3.1") {
         version = MQTTVERSION_3_1;
@@ -129,6 +154,101 @@ int get_mqtt_version(const std::string &user_input) {
         std::cerr << "Using default one: " << std::endl;
     }
     return version;
+}
+
+std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase) {
+    /**
+    * @ phase number (0 - starting, 1- measutring, 2- cleanup)
+    *
+    * Calculates timepoint in future when should given phase end with assuption that it starts now.
+    *
+    * Returns time_point when given phase should start.
+    */
+    long phase_duration = 0;
+    if (phase == 1) {
+        phase_duration = l_arguments["duration"] * l_arguments["middle"] / 100;
+    } else {
+        phase_duration = l_arguments["duration"] * (100 - l_arguments["middle"]) / 200;
+    }
+    std::chrono::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(phase_duration);
+    return deadline;
+}
+
+void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
+          std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published) {
+    /**
+    * @ payload_size size of the message
+    * @ client configured connection to broker
+    * @ mqtt_message prepared message
+    * @ tokens list of all tokens for messages that have been already sent asynchronously
+    * @ last_published index of the last confirmed token (message has been sent) from the tokens list
+    *
+    * Sends single message
+    */
+    if (tokens.size() - last_published >= l_arguments["buffer"]) {
+        // message buffer is full
+        if (s_arguments["debug"] == "True") {
+            std::cout << last_published << " - published" << std::endl;
+        }
+        wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]),
+                             payload_size);
+    }
+    auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
+    tokens.push_back(client.publish(mqtt_message));
+    std::this_thread::sleep_until(next_run_time);
+}
+
+void performPublishingCycle(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
+                            const mqtt::message_ptr &mqtt_ignore, std::vector<std::shared_ptr<mqtt::token> > &tokens) {
+    /**
+    * @ payload_size size of the message
+    * @ client configured connection to broker
+    * @ mqtt_message prepared measured message
+    * @ mqtt_ignore prepared non measured message
+    * @ tokens list of all tokens for messages that have been already sent asynchronously
+    *
+    * Sends multiple messages - restricted via time or number of messages
+    */
+    size_t last_published = 0;
+
+    if (l_arguments["duration"] == 0) {
+        // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
+        for (auto i = 0; i < l_arguments["messages"]; ++i) {
+            send(payload_size, client, mqtt_message, tokens, last_published);
+        }
+    } else {
+        // Starting phase: 0
+        if (s_arguments["debug"] == "True") {
+            std::cout << " Starting phase " << std::endl;
+        }
+        auto end_time = get_phase_deadline(0);
+        while (std::chrono::steady_clock::now() < end_time) {
+            send(payload_size, client, mqtt_ignore, tokens, last_published);
+        }
+        // Measurement phase: 1
+        if (s_arguments["debug"] == "True") {
+            std::cout << " Measurement phase " << std::endl;
+        }
+
+
+        end_time = get_phase_deadline(1);
+        while (std::chrono::steady_clock::now() < end_time) {
+            send(payload_size, client, mqtt_message, tokens, last_published);
+        }
+        // Cleanup phase: 2
+        if (s_arguments["debug"] == "True") {
+            std::cout << " Cleanup phase " << std::endl;
+        }
+        end_time = get_phase_deadline(2);
+        while (std::chrono::steady_clock::now() < end_time) {
+            send(payload_size, client, mqtt_ignore, tokens, last_published);
+        }
+
+        // Wait for all publish tokens to complete
+        if (!tokens.back()->wait_for(get_timeout(payload_size))) {
+            std::cout << get_timeout(payload_size) << " timeout waiting for message " << last_published << std::endl;
+        }
+    }
 }
 
 std::string publishMQTT(const std::string &message, int qos) {
@@ -157,46 +277,33 @@ std::string publishMQTT(const std::string &message, int qos) {
         }
 
         // first non measured message
-        publish_separator(&client);
+        publish_separator(client);
 
         // Pre-create the message to minimize allocation overhead
         auto mqtt_message = mqtt::make_message(s_arguments["topic"], message, qos, false);
+        std::string ignore = message;
+        ignore.replace(0, 1, "!");
+        mqtt::message_ptr mqtt_ignore = mqtt::make_message(s_arguments["topic"], ignore, qos, false);
 
-        // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
+
         std::vector<std::shared_ptr<mqtt::token> > tokens;
-        tokens.reserve(l_arguments["messages"]);
-        size_t last_published = 0;
-        auto start_time = std::chrono::steady_clock::now();
-        auto next_run_time = std::chrono::steady_clock::now();
-
-        for (auto i = 0; i < l_arguments["messages"]; ++i) {
-            next_run_time += std::chrono::milliseconds(l_arguments["period"]);
-            tokens.push_back(client.publish(mqtt_message));
-            //std::this_thread::sleep_for(std::chrono::milliseconds());
-            if (tokens.size() - last_published >= l_arguments["buffer"]) {
-                // message buffer is full
-                if (s_arguments["debug"] == "True") {
-                    std::cout << last_published << " - published" << std::endl;
-                }
-                wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]),
-                                     message.size());
-            }
-            std::this_thread::sleep_until(next_run_time);
-        }
-        // Wait for all publish tokens to complete
-        if (!tokens.back()->wait_for(get_timeout(message.size()))) {
-            std::cout << get_timeout(message.size()) << " timeout waiting for message " << last_published << std::endl;
-        }
+        constexpr long expected_throughput = 1000000000l; // max 1 GB
+        const long expected_messages = l_arguments["duration"] * (
+                                           expected_throughput / static_cast<long>(message.size()));
+        tokens.reserve(std::max(expected_messages, l_arguments["messages"]));
 
         auto payload_size = message.size();
-        std::string measurement = process_measurement(start_time, payload_size);
+        auto start_time = std::chrono::steady_clock::now();
 
-        publish_separator(&client, true);
+        performPublishingCycle(message.size(), client, mqtt_message, mqtt_ignore, tokens);
+        std::string measurement = process_measurement(start_time, payload_size, tokens.size());
+
+        publish_separator(client, true);
         return measurement;
     } catch (const mqtt::exception &e) {
         std::cerr << "Failed to publish MQTT messages: " << e.what() << std::endl;
     }
-    return "[0,0,0,0]";
+    return "[0,0,0,0]"; // NaN - measurement failed
 }
 
 std::string publish(const std::string &protocol, const std::string &message, int qos) {
@@ -315,11 +422,12 @@ bool set_parameters(int argc, char *argv[]) {
         } else if ((arg == "--version") && i + 1 < argc) {
             s_arguments["version"] = argv[++i];
         } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
-            s_arguments["qos"] =argv[++i];
+            s_arguments["qos"] = argv[++i];
         } else if ((arg == "--period") && i + 1 < argc) {
             l_arguments["period"] = std::stol(argv[++i]);
         } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
             l_arguments["messages"] = std::stol(argv[++i]);
+            l_arguments["duration"] = 0;
         } else if ((arg == "-b" || arg == "--buffer") && i + 1 < argc) {
             l_arguments["buffer"] = std::stol(argv[++i]);
         } else if ((arg == "-r" || arg == "--repetitions") && i + 1 < argc) {
@@ -334,6 +442,11 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["percentage"] = std::stol(argv[++i]);
         } else if ((arg == "--consumers") && i + 1 < argc) {
             l_arguments["consumers"] = std::stol(argv[++i]);
+        } else if ((arg == "--middle") && i + 1 < argc) {
+            l_arguments["middle"] = std::stol(argv[++i]);
+        } else if ((arg == "--duration") && i + 1 < argc) {
+            l_arguments["duration"] = std::stol(argv[++i]);
+            l_arguments["messages"] = 0;
         } else if (arg == "--help" || arg == "-h") {
             print_flags();
             return false;
@@ -353,11 +466,12 @@ int main(int argc, char *argv[]) {
     const std::vector<std::string> messages = generate_messages(l_arguments["min"], l_arguments["max"]);
     std::vector<std::string> measurements;
     measurements.reserve(messages.size());
-    for (const auto& qos : parseQoS(s_arguments["qos"])) {
+    for (const auto &qos: parseQoS(s_arguments["qos"])) {
         l_arguments["qos"] = qos;
         for (int i = 0; i < l_arguments["repetitions"]; ++i) {
             for (const auto &message: messages) {
-                measurements.emplace_back(publish(s_arguments["protocol"], message, static_cast<int>(l_arguments["qos"])));
+                measurements.emplace_back(publish(s_arguments["protocol"], message,
+                                                  static_cast<int>(l_arguments["qos"])));
             }
             store_string(format_output(measurements));
         }

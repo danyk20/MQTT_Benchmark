@@ -102,7 +102,7 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     auto client = std::make_unique<mqtt::client>(broker, arguments["client_id"],
                                                  mqtt::create_options(get_mqtt_version(arguments["version"])));
     client->connect();
-    client->subscribe(arguments["topic"],std::stoi(arguments["qos"]));
+    client->subscribe(arguments["topic"], std::stoi(arguments["qos"]));
     client->start_consuming();
     return client;
 }
@@ -121,7 +121,7 @@ bool process_payload(int &received_messages, size_t &current_size,
      */
     const std::string messageString = message_pointer->get_payload_str();
     // std::cout << messageString << std::endl;
-    if (messageString.empty()) {
+    if (messageString.empty() || messageString.at(0) == '!') {
         return true;
     }
     current_size = messageString.size();
@@ -203,7 +203,7 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
     store_string(format_output(measurements)); // save all measured data into file
 }
 
-std::vector<int> parseQoS(const std::string& input) {
+std::vector<int> parseQoS(const std::string &input) {
     std::vector<int> numbers;
     std::stringstream ss(input);
     std::string temp;
@@ -220,7 +220,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     const auto client = prepare_consumer().release();
-    for (const auto& qos : parseQoS(arguments["qos_input"])) {
+    for (const auto &qos: parseQoS(arguments["qos_input"])) {
         arguments["qos"] = std::to_string(qos);
         consume(client);
     }

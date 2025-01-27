@@ -114,6 +114,51 @@ guarantees the message delivery but potentially exists duplicate messages, and Q
 delivered exactly once without duplication. As the QoS level increases, the reliability of message delivery also
 increases, but so does the complexity of the transmission process.
 
+#### Pseudocode
+
+```text
+messages = generate_messages(min_size, max_size)
+for message in messages:
+  client = connect(ip, port, protocol_version)
+  payload = pack(topic, message, qos)
+  measurement = perform_publishing_cycle(limit)
+  store(measurement)
+```
+
+- time restricted measurement
+
+```text
+perform_publishing_cycle(limit):
+  while(starting_phase_duration(limit)):
+    send(ignored_data)
+
+  while(measurement_phase_duration(limit)):
+    send(measured_data)
+
+  while(cleanup_phase_duration(limit)):
+    send(ignored_data)
+
+```
+
+- message restricted measurement
+
+```text
+perform_publishing_cycle(limit):
+  send(ignored_data)
+  for i in range(limit):
+    send(measured_data)
+  send(ignored_data)
+```
+
+- send(data)
+```text
+if (buffer_full):
+  wait(required_space)
+next_message_timestamp = now() + period
+buffer(publish(data))
+sleep_until(next_message_timestamp)
+```
+
 #### Flags
 
 };
@@ -133,8 +178,19 @@ increases, but so does the complexity of the transmission process.
 - `messages` - number of messages that will send per each payload size *400*
 - `period` - minimum delay between 2 messages *80*ms
 - `percentage` - once is buffer full wait until buffer is less than percentage % full *50*
-- `consumers` - number of consumers involved (used as filename prefix): *\1*
-- `version` - protocol version: *\3.1.1*
+- `consumers` - number of consumers involved (used as filename prefix): *1*
+- `version` - protocol version: *3.1.1*
+- `duration` - messages will be constantly sending for: *60*s
+- `middle` - begging and end of the measurement will be cut off except middle part of: *50*%
+  - look into `time restricted measurement` pseudocode above
+
+#### Troubleshooting
+
+- Broker is not running:
+    - ```shell
+        Failed to publish MQTT messages: MQTT error [-1]: TCP/TLS connect failure
+    ```
+    - fix : ``` sudo docker compose up --build --detach ```
 
 ### Consumer
 
