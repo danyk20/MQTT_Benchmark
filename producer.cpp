@@ -31,7 +31,8 @@ std::map<std::string, long> l_arguments = {
     {"percentage", 50}, // % between 1 and 100 buffer window size
     {"consumers", 1},
     {"duration", 60}, // in seconds
-    {"middle", 50} // % between 1 and 100 duration of measurement
+    {"middle", 50}, // % between 1 and 100 duration of measurement
+    {"debug_period", 5}
 };
 
 std::vector<int> parseQoS(const std::string &input) {
@@ -117,10 +118,10 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
 void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
                           int percentage, size_t payload_size) {
     /**
-    * @ tokens list of all tokens for messages that have been already sent asynchronously
-    * @ last_published index of the last confirmed token (message has been sent) from the tokens list
-    * @ percentage size of the full baffer that is reaquired to be free
-    * @ payload_size message size
+    * @ tokens - list of all tokens for messages that have been already sent asynchronously
+    * @ last_published - index of the last confirmed token (message has been sent) from the tokens list
+    * @ percentage - size of the full baffer that is reaquired to be free
+    * @ payload_size - message size
     *
     * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
     */
@@ -136,7 +137,7 @@ void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
 
 int get_mqtt_version(const std::string &user_input) {
     /**
-    * @ user_input string input from the user
+    * @ user_input - string input from the user
     *
     * supported are all valid version with dot notation
     *
@@ -158,7 +159,7 @@ int get_mqtt_version(const std::string &user_input) {
 
 std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase) {
     /**
-    * @ phase number (0 - starting, 1- measutring, 2- cleanup)
+    * @ phase - number (0 - starting, 1- measutring, 2- cleanup)
     *
     * Calculates timepoint in future when should given phase end with assuption that it starts now.
     *
@@ -175,73 +176,94 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
 }
 
 void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
-          std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published) {
+          std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published, const bool debug = false) {
     /**
-    * @ payload_size size of the message
-    * @ client configured connection to broker
-    * @ mqtt_message prepared message
-    * @ tokens list of all tokens for messages that have been already sent asynchronously
-    * @ last_published index of the last confirmed token (message has been sent) from the tokens list
+    * @ payload_size - size of the message
+    * @ client - configured connection to broker
+    * @ mqtt_message - prepared message
+    * @ tokens - list of all tokens for messages that have been already sent asynchronously
+    * @ last_published - index of the last confirmed token (message has been sent) from the tokens list
+    * @ debug - print debug message when buffer window moves
     *
     * Sends single message
     */
     if (tokens.size() - last_published >= l_arguments["buffer"]) {
         // message buffer is full
-        if (s_arguments["debug"] == "True") {
-            std::cout << last_published << " - published" << std::endl;
-        }
         wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]),
                              payload_size);
     }
     auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
     tokens.push_back(client.publish(mqtt_message));
+    if (debug) {
+        std::cout << last_published << " - published and " << tokens.size() - last_published << " in buffer" <<
+                std::endl;
+    }
     std::this_thread::sleep_until(next_run_time);
+}
+
+bool print_debug(std::chrono::time_point<std::chrono::steady_clock> &next_print) {
+    /**
+    * @ next_print - earliest timestamp when next this function returns true
+    *
+    * Compute whether it is time to print another debug message or not yet
+    *
+    * Returns true only if from last time when it returned true passed at least defined number of seconds otherwise false
+    */
+
+    const std::chrono::time_point current_time = std::chrono::steady_clock::now();
+    if (current_time >= next_print) {
+        next_print = current_time + std::chrono::seconds(l_arguments["debug_period"]);
+        return true;
+    }
+    return false;
 }
 
 void performPublishingCycle(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
                             const mqtt::message_ptr &mqtt_ignore, std::vector<std::shared_ptr<mqtt::token> > &tokens) {
     /**
-    * @ payload_size size of the message
-    * @ client configured connection to broker
-    * @ mqtt_message prepared measured message
-    * @ mqtt_ignore prepared non measured message
-    * @ tokens list of all tokens for messages that have been already sent asynchronously
+    * @ payload_size - size of the message
+    * @ client - configured connection to broker
+    * @ mqtt_message - prepared measured message
+    * @ mqtt_ignore - prepared non measured message
+    * @ tokens - list of all tokens for messages that have been already sent asynchronously
     *
     * Sends multiple messages - restricted via time or number of messages
     */
     size_t last_published = 0;
+    const bool debug = s_arguments["debug"] == "True";
+    std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
 
     if (l_arguments["duration"] == 0) {
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
         for (auto i = 0; i < l_arguments["messages"]; ++i) {
-            send(payload_size, client, mqtt_message, tokens, last_published);
+            send(payload_size, client, mqtt_message, tokens, last_published, debug && print_debug(next_print));
         }
     } else {
         // Starting phase: 0
-        if (s_arguments["debug"] == "True") {
+        if (debug) {
             std::cout << " Starting phase " << std::endl;
         }
         auto end_time = get_phase_deadline(0);
         while (std::chrono::steady_clock::now() < end_time) {
-            send(payload_size, client, mqtt_ignore, tokens, last_published);
+            send(payload_size, client, mqtt_ignore, tokens, last_published, debug && print_debug(next_print));
         }
         // Measurement phase: 1
-        if (s_arguments["debug"] == "True") {
+        if (debug) {
             std::cout << " Measurement phase " << std::endl;
         }
 
 
         end_time = get_phase_deadline(1);
         while (std::chrono::steady_clock::now() < end_time) {
-            send(payload_size, client, mqtt_message, tokens, last_published);
+            send(payload_size, client, mqtt_message, tokens, last_published, debug && print_debug(next_print));
         }
         // Cleanup phase: 2
-        if (s_arguments["debug"] == "True") {
+        if (debug) {
             std::cout << " Cleanup phase " << std::endl;
         }
         end_time = get_phase_deadline(2);
         while (std::chrono::steady_clock::now() < end_time) {
-            send(payload_size, client, mqtt_ignore, tokens, last_published);
+            send(payload_size, client, mqtt_ignore, tokens, last_published, debug && print_debug(next_print));
         }
 
         // Wait for all publish tokens to complete
@@ -423,11 +445,10 @@ bool set_parameters(int argc, char *argv[]) {
             s_arguments["version"] = argv[++i];
         } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
             s_arguments["qos"] = argv[++i];
+        } else if ((arg == "--debug_period") && i + 1 < argc) {
+            l_arguments["debug_period"] = std::stol(argv[++i]);
         } else if ((arg == "--period") && i + 1 < argc) {
             l_arguments["period"] = std::stol(argv[++i]);
-        } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
-            l_arguments["messages"] = std::stol(argv[++i]);
-            l_arguments["duration"] = 0;
         } else if ((arg == "-b" || arg == "--buffer") && i + 1 < argc) {
             l_arguments["buffer"] = std::stol(argv[++i]);
         } else if ((arg == "-r" || arg == "--repetitions") && i + 1 < argc) {
@@ -444,6 +465,9 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["consumers"] = std::stol(argv[++i]);
         } else if ((arg == "--middle") && i + 1 < argc) {
             l_arguments["middle"] = std::stol(argv[++i]);
+        } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
+            l_arguments["messages"] = std::stol(argv[++i]);
+            l_arguments["duration"] = 0;
         } else if ((arg == "--duration") && i + 1 < argc) {
             l_arguments["duration"] = std::stol(argv[++i]);
             l_arguments["messages"] = 0;
