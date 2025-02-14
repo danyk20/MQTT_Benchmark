@@ -16,7 +16,9 @@ std::map<std::string, std::string> s_arguments = {
     {"client_id", ""},
     {"protocol", "MQTT"}, //
     {"version", "3.1.1"},
-    {"qos", "1"}
+    {"qos", "1"},
+    {"username", "artemis"},
+    {"password", "artemis"},
 };
 
 std::map<std::string, long> l_arguments = {
@@ -25,6 +27,7 @@ std::map<std::string, long> l_arguments = {
     {"buffer", 100}, // max number of messages in the buffer
     {"repetitions", 1},
     {"timeout", 5}, // wait timeout in ms per message per 1KB payload
+    {"min_timeout", 10000}, // minimal timeout in ms
     {"qos", 1},
     {"min", 72}, // minimum payload size in KB
     {"max", 72}, // maximum payload size in KB
@@ -59,9 +62,9 @@ long get_timeout(const size_t payload) {
      * @ payload size in B
      * Returns timeout which is 1s or more based on Buffer size and payload size
      */
-    long timeout = l_arguments["timeout"] * l_arguments["buffer"] * static_cast<long>(payload / 1024);
-    if (timeout < 5000) {
-        return 5000;
+    const long timeout = l_arguments["timeout"] * l_arguments["buffer"] * static_cast<long>(payload / 1024);
+    if (timeout < l_arguments["min_timeout"]) {
+        return l_arguments["min_timeout"];
     }
     return timeout;
 }
@@ -107,8 +110,9 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
 
 
     if (s_arguments["debug"] == "True") {
-        std::cout << "Sent " << number_of_messages << " messages of size " << payload_size
-                << " bytes to topic '" << s_arguments["topic"] << "' in " << duration.count() << " s" << std::endl;
+        std::cout << "Sent " << number_of_messages << " messages of size " << payload_size << " using QoS " <<
+                s_arguments["qos"] << " bytes to topic '" << s_arguments["topic"] << "' in " << duration.count() << " s"
+                << std::endl;
     }
 
     return "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + "," +
@@ -291,6 +295,8 @@ std::string publishMQTT(const std::string &message, int qos) {
 
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
+            .user_name(s_arguments["username"])
+            .password(s_arguments["password"])
             .mqtt_version(get_mqtt_version(s_arguments["version"]))
             .finalize();
     try {

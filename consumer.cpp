@@ -12,7 +12,9 @@ std::map<std::string, std::string> arguments = {
     {"consumers", "1"},
     {"qos", "1"},
     {"qos_input", "1"},
-    {"version", "3.1.1"}
+    {"version", "3.1.1"},
+    {"username", "artemis"},
+    {"password", "artemis"},
 };
 
 void store_string(const std::string &data) {
@@ -101,7 +103,13 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
 
     auto client = std::make_unique<mqtt::client>(broker, arguments["client_id"],
                                                  mqtt::create_options(get_mqtt_version(arguments["version"])));
-    client->connect();
+    auto connOpts = mqtt::connect_options_builder()
+            .clean_session()
+            .user_name(arguments["username"])
+            .password(arguments["password"])
+            .mqtt_version(get_mqtt_version(arguments["version"]))
+            .finalize();
+    client->connect(connOpts);
     client->subscribe(arguments["topic"], std::stoi(arguments["qos"]));
     client->start_consuming();
     return client;

@@ -169,10 +169,13 @@ sleep_until(next_message_timestamp)
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*
 - `client_id` - client id: *\<blank>*
+- `username` - authentication on broker *artemis*
+- `password` - authentication on broker *artemis*
 - `min` - minimum payload size *72*KB
 - `max` - minimum payload size *72*KB
 - `qos` - QoS list of more values separated by comma *1*
-- `timeout` - timeout for wait() *5000*ms
+- `timeout` - timeout for each KB of payload *5*s
+- `min_timeout` - minimum total timeout *10000*ms
 - `repetitions` - number of times to run the script *1*
 - `buffer` - max number of messages that can stored in the buffer *100*
 - `messages` - number of messages that will send per each payload size *400*
@@ -187,10 +190,18 @@ sleep_until(next_message_timestamp)
 #### Troubleshooting
 
 - Broker is not running:
-    - ```shell
+    - ```text
         Failed to publish MQTT messages: MQTT error [-1]: TCP/TLS connect failure
-    ```
+      ```
     - fix : ``` sudo docker compose up --build --detach ```
+  
+- Client buffer is full:
+  - ```text
+        <X>ms timeout waiting for message <Y>
+        ...
+        Failed to publish MQTT messages: MQTT error [-12]: No more messages can be buffered
+    ```
+  - fix : ``` ./produce --timeout <increased_value> ... ``` or ``` ./produce --min_timeout <increased_value> ... ```
 
 ### Consumer
 
@@ -213,6 +224,8 @@ e.g. received payload's sizes:
 - `consumers` - number of consumers involved (used for storage structure): *\1*
 - `version` - protocol version: *\3.1.1*
 - `qos` - QoS list of more values separated by comma *1*
+- `username` - authentication on broker *artemis* 
+- `password` - authentication on broker *artemis*
 
 ## Visualisation
 
