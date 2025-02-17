@@ -169,8 +169,8 @@ sleep_until(next_message_timestamp)
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*
 - `client_id` - client id: *\<blank>*
-- `username` - authentication on broker *artemis*
-- `password` - authentication on broker *artemis*
+- `username` - authentication on broker *\<blank>*
+- `password` - authentication on broker *\<blank>*
 - `min` - minimum payload size *72*KB
 - `max` - minimum payload size *72*KB
 - `qos` - QoS list of more values separated by comma *1*
@@ -224,8 +224,8 @@ e.g. received payload's sizes:
 - `consumers` - number of consumers involved (used for storage structure): *\1*
 - `version` - protocol version: *\3.1.1*
 - `qos` - QoS list of more values separated by comma *1*
-- `username` - authentication on broker *artemis* 
-- `password` - authentication on broker *artemis*
+- `username` - authentication on broker *\<blank>* 
+- `password` - authentication on broker *\<blank>*
 - `duration` - total measurement duration (disabled by default) *0*s
 - `percentage` - How much time from whole duration will take the measurement phase *80*%
 

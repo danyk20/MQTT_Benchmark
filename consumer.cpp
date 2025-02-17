@@ -13,8 +13,8 @@ std::map<std::string, std::string> arguments = {
     {"qos", "1"},
     {"qos_input", "1"},
     {"version", "3.1.1"},
-    {"username", "artemis"},
-    {"password", "artemis"},
+    {"username", ""},
+    {"password", ""},
     {"duration", "0"},
     {"percentage", "80"}
 };
@@ -127,10 +127,14 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
                                                  mqtt::create_options(get_mqtt_version(arguments["version"])));
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
-            .user_name(arguments["username"])
-            .password(arguments["password"])
             .mqtt_version(get_mqtt_version(arguments["version"]))
             .finalize();
+    if (!arguments["username"].empty()) {
+        connOpts.set_user_name(arguments["username"]);
+    }
+    if (!arguments["password"].empty()) {
+        connOpts.set_password(arguments["password"]);
+    }
     client->connect(connOpts);
     client->subscribe(arguments["topic"], std::stoi(arguments["qos"]));
     client->start_consuming();
@@ -193,10 +197,14 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["qos_input"] = argv[++i];
         } else if (arg == "--duration") {
             arguments["duration"] = argv[++i];
-        } else if (arg == "--percentage" || arg == "-p") {
+        } else if (arg == "--percentage") {
             arguments["percentage"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             arguments["debug"] = "True";
+        } else if (arg == "--username" || arg == "-u") {
+            arguments["username"] = argv[++i];
+        } else if (arg == "--password" || arg == "-p") {
+            arguments["password"] = argv[++i];
         } else if ((arg == "--version") && i + 1 < argc) {
             arguments["version"] = argv[++i];
         } else if (arg == "--help" || arg == "-h") {

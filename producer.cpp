@@ -17,8 +17,8 @@ std::map<std::string, std::string> s_arguments = {
     {"protocol", "MQTT"}, //
     {"version", "3.1.1"},
     {"qos", "1"},
-    {"username", "artemis"},
-    {"password", "artemis"},
+    {"username", ""},
+    {"password", ""},
 };
 
 std::map<std::string, long> l_arguments = {
@@ -296,10 +296,15 @@ std::string publishMQTT(const std::string &message, int qos) {
 
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
-            .user_name(s_arguments["username"])
-            .password(s_arguments["password"])
+
             .mqtt_version(get_mqtt_version(s_arguments["version"]))
             .finalize();
+    if (!s_arguments["username"].empty()) {
+        connOpts.set_user_name(s_arguments["username"]);
+    }
+    if (!s_arguments["password"].empty()) {
+        connOpts.set_password(s_arguments["password"]);
+    }
     try {
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
             std::cerr << "connect failed - timeout" << std::endl;
@@ -440,15 +445,19 @@ bool set_parameters(int argc, char *argv[]) {
             s_arguments["output_file"] = argv[++i];
         } else if ((arg == "-t" || arg == "--topic") && i + 1 < argc) {
             s_arguments["topic"] = argv[++i];
+        } else if ((arg == "-u" || arg == "--username") && i + 1 < argc) {
+            s_arguments["username"] = argv[++i];
+        } else if ((arg == "-p" || arg == "--password") && i + 1 < argc) {
+            s_arguments["password"] = argv[++i];
         } else if ((arg == "-c" || arg == "--client_id") && i + 1 < argc) {
             s_arguments["client_id"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             s_arguments["debug"] = "True";
         } else if ((arg == "-s" || arg == "--separator") && i + 1 < argc) {
             s_arguments["separator"] = argv[++i];
-        } else if ((arg == "-p" || arg == "--protocol") && i + 1 < argc) {
+        } else if (arg == "--protocol" && i + 1 < argc) {
             s_arguments["protocol"] = argv[++i];
-        } else if ((arg == "--version") && i + 1 < argc) {
+        } else if (arg == "--version" && i + 1 < argc) {
             s_arguments["version"] = argv[++i];
         } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
             s_arguments["qos"] = argv[++i];
