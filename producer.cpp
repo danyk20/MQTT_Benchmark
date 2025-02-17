@@ -165,9 +165,10 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
     /**
     * @ phase - number (0 - starting, 1- measutring, 2- cleanup)
     *
-    * Calculates timepoint in future when should given phase end with assuption that it starts now.
+    * Calculates timepoint in future when should given phase end with assuption that it starts now. (cleanup and
+    * starting phase have eaqual duration)
     *
-    * Returns time_point when given phase should start.
+    * Returns time_point when given phase should finish.
     */
     long phase_duration = 0;
     if (phase == 1) {

@@ -226,6 +226,8 @@ e.g. received payload's sizes:
 - `qos` - QoS list of more values separated by comma *1*
 - `username` - authentication on broker *artemis* 
 - `password` - authentication on broker *artemis*
+- `duration` - total measurement duration (disabled by default) *0*s
+- `percentage` - How much time from whole duration will take the measurement phase *80*%
 
 ## Visualisation
 

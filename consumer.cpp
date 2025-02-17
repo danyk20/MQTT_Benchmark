@@ -15,7 +15,29 @@ std::map<std::string, std::string> arguments = {
     {"version", "3.1.1"},
     {"username", "artemis"},
     {"password", "artemis"},
+    {"duration", "0"},
+    {"percentage", "80"}
 };
+
+std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
+    int phase, std::chrono::time_point<std::chrono::steady_clock> start_time = std::chrono::steady_clock::now()) {
+    /**
+    * @ phase - number (0 - starting, 1- measutring)
+    * @ start_time - to which time should be added the phase duration
+    *
+    * Calculates timepoint in future when should given phase end with assuption that it starts from start_time.
+    *
+    * Returns time_point when given phase should finish.
+    */
+    long phase_duration = 0;
+    if (phase == 1) {
+        phase_duration = std::stoi(arguments["duration"]) * std::stoi(arguments["percentage"]) / 100;
+    } else {
+        phase_duration = std::stoi(arguments["duration"]) * (100 - std::stoi(arguments["percentage"])) / 100;
+    }
+    std::chrono::time_point deadline = start_time + std::chrono::seconds(phase_duration);
+    return deadline;
+}
 
 void store_string(const std::string &data) {
     /**
@@ -169,6 +191,10 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["consumers"] = argv[++i];
         } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
             arguments["qos_input"] = argv[++i];
+        } else if (arg == "--duration") {
+            arguments["duration"] = argv[++i];
+        } else if (arg == "--percentage" || arg == "-p") {
+            arguments["percentage"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             arguments["debug"] = "True";
         } else if ((arg == "--version") && i + 1 < argc) {
@@ -185,26 +211,99 @@ bool set_parameters(int argc, char *argv[]) {
     return true;
 }
 
+
+bool time_measurement(int &received_messages, std::vector<std::string> measurements,
+                      const mqtt::const_message_ptr &messagePointer,
+                      std::chrono::time_point<std::chrono::steady_clock> &starting_phase,
+                      std::chrono::time_point<std::chrono::steady_clock> &measuring_phase) {
+    /**
+    * Process measurement restricted by time.
+    *
+    * @received_messages - how many messages have been received
+    * @measurements - list of measurements to save as the result
+    * @message_pointer - pointer to the current received message
+    * @starting_phase - deadline of starting phase
+    * @measuring_phase - deadline of measurement phase
+    *
+    * returns True only if the measurement hasn't finished yet otherwise False
+    */
+    std::chrono::time_point<std::chrono::steady_clock> current_time = std::chrono::steady_clock::now();
+    if (starting_phase == std::chrono::time_point<std::chrono::steady_clock>{}) {
+        // set deadlines for each phase
+        starting_phase = get_phase_deadline(0);
+        measuring_phase = get_phase_deadline(1, starting_phase);
+        if (arguments["debug"] == "True") {
+            std::cout << "Starting phase started!" << std::endl;
+        }
+    }
+    if (current_time >= measuring_phase) {
+        // cleanup phase
+        auto current_size = messagePointer->get_payload_str().size();
+        add_measurement(starting_phase, received_messages, current_size, &measurements);
+        if (arguments["debug"] == "True") {
+            std::cout << "Cleanup phase started!" << std::endl;
+        }
+        return false;
+    }
+    if (current_time >= starting_phase) {
+        // measurement phase
+        received_messages++;
+        if (arguments["debug"] == "True" && received_messages == 1) {
+            std::cout << "Measurement phase started!" << std::endl;
+        }
+
+    }
+    return true;
+}
+
+bool count_measurement(int &received_messages, std::vector<std::string> measurements,
+                       const mqtt::const_message_ptr &messagePointer,
+                       std::chrono::steady_clock::time_point &start_time) {
+    /**
+    * Process measurement restricted by time.
+    *
+    * @received_messages - how many messages have been received
+    * @measurements - list of measurements to save as the result
+    * @message_pointer - pointer to the current received message
+    * @start_time - first message timestap that trigger the mesurement
+    *
+    * returns True only if the measurement hasn't finished yet otherwise False
+    */
+    size_t current_size;
+    bool separation = process_payload(received_messages, current_size, messagePointer);
+    if (received_messages == 1 && (!separation)) {
+        start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
+    } else if (separation && received_messages > 0) {
+        add_measurement(start_time, received_messages, current_size, &measurements);
+        // stop timer - separator
+        received_messages = 0; // reset message counter
+    }
+
+    return measurements.size() < stoi(arguments["separators"]);
+}
+
 void consume(const std::unique_ptr<mqtt::client>::pointer client) {
     /**
-     * Consume all messages from subscribed topic untill defined number of separators arrive. Several consecutive
-     * separators are counted as single separator.
+     * Consume all messages from subscribed topic untill defined number of separators arrive or time based deadline is
+     * reached. Several consecutive separators are counted as single separator.
      */
     auto start_time = std::chrono::steady_clock::now();
     int received_messages = 0;
     size_t current_size = 0;
     std::vector<std::string> measurements;
     mqtt::const_message_ptr messagePointer;
+    std::chrono::time_point<std::chrono::steady_clock> starting_phase;
+    std::chrono::time_point<std::chrono::steady_clock> measuring_phase;
+    bool measuring = true;
 
-    while (measurements.size() < stoi(arguments["separators"])) {
+    while (measuring) {
         if (client->try_consume_message(&messagePointer)) {
             // message arrived
-            bool separation = process_payload(received_messages, current_size, messagePointer);
-            if (received_messages == 1 && !separation) {
-                start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
-            } else if (separation && received_messages > 0) {
-                add_measurement(start_time, received_messages, current_size, &measurements); // stop timer - separator
-                received_messages = 0; // reset message counter
+            if (std::stoi(arguments["duration"])) {
+                measuring = time_measurement(received_messages, measurements, messagePointer, starting_phase,
+                                             measuring_phase);
+            } else {
+                measuring = count_measurement(received_messages, measurements, messagePointer, start_time);
             }
         }
     }
