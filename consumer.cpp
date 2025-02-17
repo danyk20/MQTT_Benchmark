@@ -220,7 +220,7 @@ bool set_parameters(int argc, char *argv[]) {
 }
 
 
-bool time_measurement(int &received_messages, std::vector<std::string> measurements,
+bool time_measurement(int &received_messages, std::vector<std::string> &measurements,
                       const mqtt::const_message_ptr &messagePointer,
                       std::chrono::time_point<std::chrono::steady_clock> &starting_phase,
                       std::chrono::time_point<std::chrono::steady_clock> &measuring_phase) {
@@ -264,7 +264,7 @@ bool time_measurement(int &received_messages, std::vector<std::string> measureme
     return true;
 }
 
-bool count_measurement(int &received_messages, std::vector<std::string> measurements,
+bool count_measurement(int &received_messages, std::vector<std::string> &measurements,
                        const mqtt::const_message_ptr &messagePointer,
                        std::chrono::steady_clock::time_point &start_time) {
     /**
@@ -297,7 +297,6 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
      */
     auto start_time = std::chrono::steady_clock::now();
     int received_messages = 0;
-    size_t current_size = 0;
     std::vector<std::string> measurements;
     mqtt::const_message_ptr messagePointer;
     std::chrono::time_point<std::chrono::steady_clock> starting_phase;
