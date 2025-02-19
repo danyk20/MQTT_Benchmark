@@ -41,7 +41,7 @@ Publish and consume messages of different payloads and evaluate how long does it
    sudo systemctl enable docker
    ```
 
-- Setup MQTT brokers with Docker Compose
+- Setup MQTT brokers with Docker Compose or manually
 
 a) -  ```shell
       sudo docker compose up --build --detach
@@ -84,7 +84,7 @@ b) -  ```shell
    `./produce --min <min_size_in_kb> --max <max_size_in_kb> --messages <number_of_messages> --period <delay_in_ms> --qos <QoS>`
 
    ```shell
-   ./produce --period 0 --min 1 --max 1024 --messages 1000 --qos 1
+   ./produce --period 0 --min 1 --max 8192 --messages 1000 --qos 1
     ```
     - Note: This example will send 14 different payload size: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
       8192
@@ -232,6 +232,52 @@ e.g. received payload's sizes:
 ## Visualisation
 
 You can visualise your results using [MQTT Benchmark Plot](https://github.com/danyk20/MQTT_Benchmark_Plot) repo.
+
+#### Pseudocode
+
+```text
+
+for current_qos in given_qoses:
+  client = connect(ip, port, protocol_version)
+  client.subscribe(topic, qos)
+  while (measuring):
+    measuring = measurement(message)
+  store_results()
+    
+```
+
+- separator restricted measurement
+
+```text
+separation = process_payload(received_messages, message);
+if (first_message_arrived() && !separation) {
+        start_time = now(); 
+} else if (separation && received_messages > 0) {
+        add_measurement(start_time, received_messages);
+        received_messages = 0; 
+}
+
+return measurements.size() < expected_separators
+```
+
+- time restricted measurement
+
+```text
+    current_time = now();
+    if (phases.empty()) {
+        starting_phase = get_phase_deadline(0);
+        measuring_phase = get_phase_deadline(1, starting_phase);
+    }
+    if (current_time > measuring_phase) {
+        add_measurement(start_time, received_messages, message.size());
+        return false;
+    }
+    if (current_time > starting_phase) {
+        received_messages++;
+    }
+    return true;
+    
+```
 
 ## Default Version
 
