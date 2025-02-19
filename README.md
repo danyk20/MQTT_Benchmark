@@ -278,8 +278,3 @@ return measurements.size() < expected_separators
     return true;
     
 ```
-
-## Default Version
-
-MQTT: 3.1.1
-QoS: 0
