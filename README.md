@@ -98,7 +98,7 @@ messages in `NUMBER_OF_REPETITIONS` repetitions and in each repetition each mess
 
 e.g. message sizes based on given range:
 
-- `Min` - 1; `Max` 10: `[1,2,4,8,16]`
+- `Min` - 1; `Max` 10: `[1,2,4,8]`
 - `Min` - 1; `Max` 16: `[1,2,4,8,16]`
 
 Test support up to three levels of QoS (exact number depends on the broker support):
