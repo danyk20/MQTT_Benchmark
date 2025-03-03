@@ -266,7 +266,7 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
 
 bool count_measurement(int &received_messages, std::vector<std::string> &measurements,
                        const mqtt::const_message_ptr &messagePointer,
-                       std::chrono::steady_clock::time_point &start_time) {
+                       std::chrono::steady_clock::time_point &start_time, size_t &payload_size) {
     /**
     * Process measurement restricted by time.
     *
@@ -274,6 +274,7 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
     * @measurements - list of measurements to save as the result
     * @message_pointer - pointer to the current received message
     * @start_time - first message timestap that trigger the mesurement
+    * @payload_size - size of the first measured payload
     *
     * returns True only if the measurement hasn't finished yet otherwise False
     */
@@ -281,8 +282,9 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
     bool separation = process_payload(received_messages, current_size, messagePointer);
     if (received_messages == 1 && (!separation)) {
         start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
+        payload_size = current_size;
     } else if (separation && received_messages > 0) {
-        add_measurement(start_time, received_messages, current_size, &measurements);
+        add_measurement(start_time, received_messages, payload_size, &measurements);
         // stop timer - separator
         received_messages = 0; // reset message counter
     }
@@ -302,6 +304,7 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
     std::chrono::time_point<std::chrono::steady_clock> starting_phase;
     std::chrono::time_point<std::chrono::steady_clock> measuring_phase;
     bool measuring = true;
+    size_t payload_size;
 
     while (measuring) {
         if (client->try_consume_message(&messagePointer)) {
@@ -310,7 +313,7 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
                 measuring = time_measurement(received_messages, measurements, messagePointer, starting_phase,
                                              measuring_phase);
             } else {
-                measuring = count_measurement(received_messages, measurements, messagePointer, start_time);
+                measuring = count_measurement(received_messages, measurements, messagePointer, start_time, payload_size);
             }
         }
     }
