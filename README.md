@@ -172,7 +172,7 @@ sleep_until(next_message_timestamp)
 - `username` - authentication on broker *\<blank>*
 - `password` - authentication on broker *\<blank>*
 - `min` - minimum payload size *72*KB
-- `max` - minimum payload size *72*KB
+- `max` - maximum payload size *72*KB
 - `qos` - QoS list of more values separated by comma *1*
 - `timeout` - timeout for each KB of payload *5*s
 - `min_timeout` - minimum total timeout *10000*ms
