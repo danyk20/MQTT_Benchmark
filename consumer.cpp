@@ -208,7 +208,7 @@ bool set_parameters(int argc, char *argv[]) {
         } else if (arg == "--password" || arg == "-p") {
             arguments["password"] = argv[++i];
         } else if (arg == "--fresh" || arg == "-f") {
-            arguments["fresh"] = argv[++i];
+            arguments["fresh"] = "True";
         } else if (arg == "--directory") {
             arguments["directory"] = argv[++i];
         } else if ((arg == "--version") && i + 1 < argc) {
