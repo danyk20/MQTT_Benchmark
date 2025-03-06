@@ -45,7 +45,7 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::string path = "data/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments["output_file"];
+    std::string path = "data/consumer/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments["output_file"];
     create_directories(std::filesystem::path(path).parent_path());
     std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {

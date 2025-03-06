@@ -32,7 +32,7 @@ std::map<std::string, long> l_arguments = {
     {"min", 72}, // minimum payload size in KB
     {"max", 72}, // maximum payload size in KB
     {"percentage", 50}, // % between 1 and 100 buffer window size
-    {"consumers", 1},
+    {"producers", 1},
     {"duration", 60}, // in seconds
     {"middle", 50}, // % between 1 and 100 duration of measurement
     {"debug_period", 5}
@@ -383,8 +383,8 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::string path = "data/" + std::to_string(l_arguments["qos"]) + "/" + std::to_string(l_arguments["consumers"]) +
-                       s_arguments["output"];
+    std::string path = "data/producer/" + std::to_string(l_arguments["qos"]) + "/" + std::to_string(
+                           l_arguments["producers"]) + "/" + s_arguments["output"];
     create_directories(std::filesystem::path(path).parent_path());
     std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {
@@ -477,8 +477,8 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["max"] = std::stol(argv[++i]);
         } else if ((arg == "--percentage") && i + 1 < argc) {
             l_arguments["percentage"] = std::stol(argv[++i]);
-        } else if ((arg == "--consumers") && i + 1 < argc) {
-            l_arguments["consumers"] = std::stol(argv[++i]);
+        } else if ((arg == "--producers") && i + 1 < argc) {
+            l_arguments["producers"] = std::stol(argv[++i]);
         } else if ((arg == "--middle") && i + 1 < argc) {
             l_arguments["middle"] = std::stol(argv[++i]);
         } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
