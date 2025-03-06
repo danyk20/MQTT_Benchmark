@@ -16,7 +16,7 @@ std::map<std::string, std::string> arguments = {
     {"username", ""},
     {"password", ""},
     {"duration", "0"},
-    {"percentage", "80"}
+    {"ratio", "80"}
 };
 
 std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
@@ -31,9 +31,9 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
     */
     long phase_duration = 0;
     if (phase == 1) {
-        phase_duration = std::stoi(arguments["duration"]) * std::stoi(arguments["percentage"]) / 100;
+        phase_duration = std::stoi(arguments["duration"]) * std::stoi(arguments["ratio"]) / 100;
     } else {
-        phase_duration = std::stoi(arguments["duration"]) * (100 - std::stoi(arguments["percentage"])) / 100;
+        phase_duration = std::stoi(arguments["duration"]) * (100 - std::stoi(arguments["ratio"])) / 100;
     }
     std::chrono::time_point deadline = start_time + std::chrono::seconds(phase_duration);
     return deadline;
@@ -197,8 +197,8 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["qos_input"] = argv[++i];
         } else if (arg == "--duration") {
             arguments["duration"] = argv[++i];
-        } else if (arg == "--percentage") {
-            arguments["percentage"] = argv[++i];
+        } else if (arg == "--ratio") {
+            arguments["ratio"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             arguments["debug"] = "True";
         } else if (arg == "--username" || arg == "-u") {

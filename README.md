@@ -151,6 +151,7 @@ perform_publishing_cycle(limit):
 ```
 
 - send(data)
+
 ```text
 if (buffer_full):
   wait(required_space)
@@ -185,7 +186,7 @@ sleep_until(next_message_timestamp)
 - `version` - protocol version: *3.1.1*
 - `duration` - messages will be constantly sending for: *60*s
 - `middle` - begging and end of the measurement will be cut off except middle part of: *50*%
-  - look into `time restricted measurement` pseudocode above
+    - look into `time restricted measurement` pseudocode above
 
 #### Troubleshooting
 
@@ -194,14 +195,14 @@ sleep_until(next_message_timestamp)
         Failed to publish MQTT messages: MQTT error [-1]: TCP/TLS connect failure
       ```
     - fix : ``` sudo docker compose up --build --detach ```
-  
+
 - Client buffer is full:
-  - ```text
+    - ```text
         <X>ms timeout waiting for message <Y>
         ...
         Failed to publish MQTT messages: MQTT error [-12]: No more messages can be buffered
     ```
-  - fix : ``` ./produce --timeout <increased_value> ... ``` or ``` ./produce --min_timeout <increased_value> ... ```
+    - fix : ``` ./produce --timeout <increased_value> ... ``` or ``` ./produce --min_timeout <increased_value> ... ```
 
 ### Consumer
 
@@ -224,10 +225,11 @@ e.g. received payload's sizes:
 - `consumers` - number of consumers involved (used for storage structure): *\1*
 - `version` - protocol version: *\3.1.1*
 - `qos` - QoS list of more values separated by comma *1*
-- `username` - authentication on broker *\<blank>* 
+- `username` - authentication on broker *\<blank>*
 - `password` - authentication on broker *\<blank>*
 - `duration` - total measurement duration (disabled by default) *0*s
-- `percentage` - How much time from whole duration will take the measurement phase *80*%
+- `ratio` - ratio of overall duration that will be measured (starting phase is complement before this phase nad it will
+  not be measured) *80*%
 
 ## Visualisation
 
