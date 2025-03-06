@@ -10,6 +10,7 @@
 
 std::map<std::string, std::string> s_arguments = {
     {"debug", "False"}, // debug print
+    {"fresh", "False"}, // remove all previous measurements
     {"separator", "True"}, // number of different message payloads sizes (except separator)
     {"output", "producer_results.txt"},
     {"topic", "test"}, // subscribed topic
@@ -19,6 +20,7 @@ std::map<std::string, std::string> s_arguments = {
     {"qos", "1"},
     {"username", ""},
     {"password", ""},
+    {"directory", "data/producer"},
 };
 
 std::map<std::string, long> l_arguments = {
@@ -383,7 +385,7 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::string path = "data/producer/" + std::to_string(l_arguments["qos"]) + "/" + std::to_string(
+    std::string path = s_arguments["directory"] + "/" + std::to_string(l_arguments["qos"]) + "/" + std::to_string(
                            l_arguments["producers"]) + "/" + s_arguments["output"];
     create_directories(std::filesystem::path(path).parent_path());
     std::ofstream outfile(path, std::ios_base::app);
@@ -453,10 +455,14 @@ bool set_parameters(int argc, char *argv[]) {
             s_arguments["client_id"] = argv[++i];
         } else if (arg == "--debug" || arg == "-d") {
             s_arguments["debug"] = "True";
+        } else if (arg == "--fresh" || arg == "-f") {
+            s_arguments["fresh"] = "True";
         } else if ((arg == "-s" || arg == "--separator") && i + 1 < argc) {
             s_arguments["separator"] = argv[++i];
         } else if (arg == "--protocol" && i + 1 < argc) {
             s_arguments["protocol"] = argv[++i];
+        } else if (arg == "--directory" && i + 1 < argc) {
+            s_arguments["directory"] = argv[++i];
         } else if (arg == "--version" && i + 1 < argc) {
             s_arguments["version"] = argv[++i];
         } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
@@ -499,9 +505,35 @@ bool set_parameters(int argc, char *argv[]) {
     return true;
 }
 
+void clear_old_data(const std::string &path) {
+    /**
+    * Remove all previous measurments
+    *
+    * @path - string path to the direcctory
+    */
+    const std::filesystem::path dirPath = path;
+    try {
+        if (exists(dirPath)) {
+            for (const auto &entry: std::filesystem::directory_iterator(dirPath)) {
+                remove_all(entry.path());
+            }
+            if (s_arguments["debug"] == "True") {
+                std::cout << "Old measurements cleared successfully." << std::endl;
+            }
+        } else {
+            std::cerr << "Directory does not exist: " << dirPath << std::endl;
+        }
+    } catch (const std::filesystem::filesystem_error &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (!set_parameters(argc, argv)) {
         return 1;
+    }
+    if (s_arguments["fresh"] == "True") {
+        clear_old_data(s_arguments["directory"]);
     }
     const std::vector<std::string> messages = generate_messages(l_arguments["min"], l_arguments["max"]);
     std::vector<std::string> measurements;

@@ -5,9 +5,11 @@
 
 std::map<std::string, std::string> arguments = {
     {"debug", "False"}, // debug print
+    {"fresh", "False"},
     {"separators", "1"}, // number of different message payloads sizes (except separator)
     {"output_file", "consumer_results.txt"},
     {"topic", "test"},
+    {"directory", "data/consumer"},
     {"client_id", ""},
     {"consumers", "1"},
     {"qos", "1"},
@@ -45,7 +47,7 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::string path = "data/consumer/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments["output_file"];
+    std::string path = arguments["directory"] + "/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments["output_file"];
     create_directories(std::filesystem::path(path).parent_path());
     std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {
@@ -205,6 +207,10 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["username"] = argv[++i];
         } else if (arg == "--password" || arg == "-p") {
             arguments["password"] = argv[++i];
+        } else if (arg == "--fresh" || arg == "-f") {
+            arguments["fresh"] = argv[++i];
+        } else if (arg == "--directory") {
+            arguments["directory"] = argv[++i];
         } else if ((arg == "--version") && i + 1 < argc) {
             arguments["version"] = argv[++i];
         } else if (arg == "--help" || arg == "-h") {
@@ -332,9 +338,35 @@ std::vector<int> parseQoS(const std::string &input) {
     return numbers;
 }
 
+void clear_old_data(const std::string& path) {
+    /**
+     * Remove all previous measurments
+     *
+     * @path - string path to the direcctory
+     */
+    const std::filesystem::path dirPath = path;
+    try {
+        if (exists(dirPath)) {
+            for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
+                remove_all(entry.path());
+            }
+            if (arguments["debug"] == "True") {
+                std::cout << "Old measurements cleared successfully." << std::endl;
+            }
+        } else {
+            std::cerr << "Directory does not exist: " << dirPath << std::endl;
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (!set_parameters(argc, argv)) {
         return 1;
+    }
+    if (arguments["fresh"] == "True") {
+        clear_old_data(arguments["directory"]);
     }
     const auto client = prepare_consumer().release();
     for (const auto &qos: parseQoS(arguments["qos_input"])) {
