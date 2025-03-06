@@ -182,7 +182,7 @@ sleep_until(next_message_timestamp)
 - `messages` - number of messages that will send per each payload size *400*
 - `period` - minimum delay between 2 messages *80*ms
 - `percentage` - once is buffer full wait until buffer is less than percentage % full *50*
-- `consumers` - number of consumers involved (used as filename prefix): *1*
+- `producers` - number of producers involved (used for storage structure): *1*
 - `version` - protocol version: *3.1.1*
 - `duration` - messages will be constantly sending for: *60*s
 - `middle` - begging and end of the measurement will be cut off except middle part of: *50*%
