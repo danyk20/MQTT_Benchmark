@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ranges>
 #include <string>
 #include <cstdlib>
 #include <fstream>
@@ -119,6 +120,27 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
 
     return "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + "," +
            std::to_string(throughput) + "," + std::to_string(message_per_seconds) + "]";
+}
+
+size_t delivered_messages(const std::vector<std::shared_ptr<mqtt::token> > &tokens) {
+    /**
+     * Count number of succefully send messages.
+     *
+     * @ tokens - list of all tokens for messages that have been already sent asynchronously
+     */
+    size_t waiting = 0;
+    const size_t sent_messages = tokens.size();
+    for (const auto & token : std::ranges::reverse_view(tokens)) {
+        if (token) {
+            if (!token->wait_for(0)) {
+                waiting++;
+            }
+            else {
+                break;
+            }
+        }
+    }
+    return sent_messages - waiting;
 }
 
 void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
@@ -307,6 +329,14 @@ std::string publishMQTT(const std::string &message, int qos) {
     if (!s_arguments["password"].empty()) {
         connOpts.set_password(s_arguments["password"]);
     }
+
+    std::vector<std::shared_ptr<mqtt::token> > tokens;
+    constexpr long expected_throughput = 1000000000l; // max 1 GB
+    const long expected_messages = l_arguments["duration"] * (
+                                       expected_throughput / static_cast<long>(message.size()));
+    tokens.reserve(std::max(expected_messages, l_arguments["messages"]));
+    size_t successful_messages = 0;
+
     try {
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
             std::cerr << "connect failed - timeout" << std::endl;
@@ -321,13 +351,6 @@ std::string publishMQTT(const std::string &message, int qos) {
         ignore.replace(0, 1, "!");
         mqtt::message_ptr mqtt_ignore = mqtt::make_message(s_arguments["topic"], ignore, qos, false);
 
-
-        std::vector<std::shared_ptr<mqtt::token> > tokens;
-        constexpr long expected_throughput = 1000000000l; // max 1 GB
-        const long expected_messages = l_arguments["duration"] * (
-                                           expected_throughput / static_cast<long>(message.size()));
-        tokens.reserve(std::max(expected_messages, l_arguments["messages"]));
-
         auto payload_size = message.size();
         auto start_time = std::chrono::steady_clock::now();
 
@@ -337,9 +360,12 @@ std::string publishMQTT(const std::string &message, int qos) {
         publish_separator(client, true);
         return measurement;
     } catch (const mqtt::exception &e) {
-        std::cerr << "Failed to publish MQTT messages: " << e.what() << std::endl;
+        successful_messages = delivered_messages(tokens);
+        std::cerr << "Failed to publish " << successful_messages << "th MQTT messages: " << e.what() << std::endl;
     }
-    return "[0,0,0,0]"; // NaN - measurement failed
+    std::stringstream ss;
+    ss << "[" << delivered_messages(tokens) << ",0,0,0] - and Failed";
+    return ss.str(); // NaN - measurement failed
 }
 
 std::string publish(const std::string &protocol, const std::string &message, int qos) {
