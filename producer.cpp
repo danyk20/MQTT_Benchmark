@@ -1,5 +1,4 @@
 #include <iostream>
-#include <ranges>
 #include <string>
 #include <cstdlib>
 #include <fstream>
@@ -128,19 +127,10 @@ size_t delivered_messages(const std::vector<std::shared_ptr<mqtt::token> > &toke
      *
      * @ tokens - list of all tokens for messages that have been already sent asynchronously
      */
-    size_t waiting = 0;
-    const size_t sent_messages = tokens.size();
-    for (const auto & token : std::ranges::reverse_view(tokens)) {
-        if (token) {
-            if (!token->wait_for(0)) {
-                waiting++;
-            }
-            else {
-                break;
-            }
-        }
+    size_t index = tokens.size();
+    for (; index > 0 && !tokens[index - 1]->wait_for(0); index--) {
     }
-    return sent_messages - waiting;
+    return index;
 }
 
 void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
