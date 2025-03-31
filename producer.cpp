@@ -40,7 +40,7 @@ std::map<std::string, long> l_arguments = {
     {"debug_period", 5}
 };
 
-std::vector<int> parseQoS(const std::string &input) {
+std::vector<int> parse_qos(const std::string &input) {
     /**
      * @ input string input from the user
      *
@@ -237,7 +237,7 @@ bool print_debug(std::chrono::time_point<std::chrono::steady_clock> &next_print)
     return false;
 }
 
-void performPublishingCycle(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
+void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
                             const mqtt::message_ptr &mqtt_ignore, std::vector<std::shared_ptr<mqtt::token> > &tokens) {
     /**
     * @ payload_size - size of the message
@@ -292,7 +292,7 @@ void performPublishingCycle(size_t payload_size, mqtt::async_client &client, con
     }
 }
 
-std::string publishMQTT(const std::string &message, int qos) {
+std::string publish_mqtt(const std::string &message, int qos) {
     /**
      * Send messages asynchronously and measure that time. After sending all messages send one empty payload and close
      * the connection.
@@ -344,7 +344,7 @@ std::string publishMQTT(const std::string &message, int qos) {
         auto payload_size = message.size();
         auto start_time = std::chrono::steady_clock::now();
 
-        performPublishingCycle(message.size(), client, mqtt_message, mqtt_ignore, tokens);
+        perform_publishing_cycle(message.size(), client, mqtt_message, mqtt_ignore, tokens);
         std::string measurement = process_measurement(start_time, payload_size, tokens.size());
 
         publish_separator(client, true);
@@ -369,7 +369,7 @@ std::string publish(const std::string &protocol, const std::string &message, int
     * [number_of_messages,single-message_size,B/s,number_of_message/s]
     */
     if (protocol == "MQTT" || protocol == "mqtt") {
-        return publishMQTT(message, qos);
+        return publish_mqtt(message, qos);
     }
     std::cerr << "Unsupported protocol: " << protocol << std::endl;
     return "";
@@ -554,7 +554,7 @@ int main(int argc, char *argv[]) {
     const std::vector<std::string> messages = generate_messages(l_arguments["min"], l_arguments["max"]);
     std::vector<std::string> measurements;
     measurements.reserve(messages.size());
-    for (const auto &qos: parseQoS(s_arguments["qos"])) {
+    for (const auto &qos: parse_qos(s_arguments["qos"])) {
         l_arguments["qos"] = qos;
         for (int i = 0; i < l_arguments["repetitions"]; ++i) {
             for (const auto &message: messages) {

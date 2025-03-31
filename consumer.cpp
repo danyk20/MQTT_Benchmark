@@ -326,7 +326,7 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
     store_string(format_output(measurements)); // save all measured data into file
 }
 
-std::vector<int> parseQoS(const std::string &input) {
+std::vector<int> parse_qos(const std::string &input) {
     std::vector<int> numbers;
     std::stringstream ss(input);
     std::string temp;
@@ -369,7 +369,7 @@ int main(int argc, char *argv[]) {
         clear_old_data(arguments["directory"]);
     }
     const auto client = prepare_consumer().release();
-    for (const auto &qos: parseQoS(arguments["qos_input"])) {
+    for (const auto &qos: parse_qos(arguments["qos_input"])) {
         arguments["qos"] = std::to_string(qos);
         consume(client);
     }
