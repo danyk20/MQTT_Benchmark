@@ -329,6 +329,7 @@ std::string publish_mqtt(const std::string &message, int qos) {
     try {
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
             std::cerr << "connect failed - timeout" << std::endl;
+            return "Client could not connect - Connect timeout!";
         }
 
         // first non measured message
