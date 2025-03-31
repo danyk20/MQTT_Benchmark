@@ -306,21 +306,6 @@ std::string publish_mqtt(const std::string &message, int qos) {
     const std::string brokerAddress = std::getenv("BROKER_IP");
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
 
-    mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["client_id"],
-                              static_cast<int>(l_arguments["buffer"]));
-
-    auto connOpts = mqtt::connect_options_builder()
-            .clean_session()
-
-            .mqtt_version(get_mqtt_version(s_arguments["version"]))
-            .finalize();
-    if (!s_arguments["username"].empty()) {
-        connOpts.set_user_name(s_arguments["username"]);
-    }
-    if (!s_arguments["password"].empty()) {
-        connOpts.set_password(s_arguments["password"]);
-    }
-
     std::vector<std::shared_ptr<mqtt::token> > tokens;
     constexpr long expected_throughput = 1000000000l; // max 1 GB
     const long expected_messages = l_arguments["duration"] * (
@@ -328,6 +313,21 @@ std::string publish_mqtt(const std::string &message, int qos) {
     tokens.reserve(std::max(expected_messages, l_arguments["messages"])); // to track async messages
 
     try {
+        mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["client_id"],
+                                  static_cast<int>(l_arguments["buffer"]));
+
+        auto connOpts = mqtt::connect_options_builder()
+                .clean_session()
+
+                .mqtt_version(get_mqtt_version(s_arguments["version"]))
+                .finalize();
+        if (!s_arguments["username"].empty()) {
+            connOpts.set_user_name(s_arguments["username"]);
+        }
+        if (!s_arguments["password"].empty()) {
+            connOpts.set_password(s_arguments["password"]);
+        }
+
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
             std::cerr << "connect failed - timeout" << std::endl;
             return "Client could not connect - Connect timeout!";
@@ -355,6 +355,13 @@ std::string publish_mqtt(const std::string &message, int qos) {
         std::cerr << "Failed to publish " << successful_messages << "th MQTT messages: " << e.what() << std::endl;
         std::stringstream ss;
         ss << "[" << successful_messages << ",0,0,0] - and Failed because " << e.what() << std::endl;
+        return ss.str(); // NaN - measurement failed
+    }
+    catch (...) {
+        size_t successful_messages = delivered_messages(tokens);
+        std::cerr << "Unknown exception occurred" << std::endl;
+        std::stringstream ss;
+        ss << "[" << successful_messages << ",0,0,0] - and Failed" << std::endl;
         return ss.str(); // NaN - measurement failed
     }
 }
