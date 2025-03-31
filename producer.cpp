@@ -285,11 +285,10 @@ void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, c
         while (std::chrono::steady_clock::now() < end_time) {
             send(payload_size, client, mqtt_ignore, tokens, last_published, debug && print_debug(next_print));
         }
-
-        // Wait for all publish tokens to complete
-        if (!tokens.back()->wait_for(get_timeout(payload_size))) {
-            std::cout << get_timeout(payload_size) << " timeout waiting for message " << last_published << std::endl;
-        }
+    }
+    // Wait for all publish tokens to complete
+    if (!tokens.back()->wait_for(get_timeout(payload_size))) {
+        std::cout << get_timeout(payload_size) << " timeout waiting for message " << last_published << std::endl;
     }
 }
 
