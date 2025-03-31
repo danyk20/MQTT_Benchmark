@@ -332,14 +332,14 @@ std::string publish_mqtt(const std::string &message, int qos) {
             return "Client could not connect - Connect timeout!";
         }
 
-        // first non measured message
-        publish_separator(client);
-
         // Pre-create the message to minimize allocation overhead
         auto mqtt_message = mqtt::make_message(s_arguments["topic"], message, qos, false);
         std::string ignore = message;
         ignore.replace(0, 1, "!");
         mqtt::message_ptr mqtt_ignore = mqtt::make_message(s_arguments["topic"], ignore, qos, false);
+
+        // first non measured message
+        publish_separator(client);
 
         auto payload_size = message.size();
         auto start_time = std::chrono::steady_clock::now();
