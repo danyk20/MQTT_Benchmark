@@ -325,7 +325,6 @@ std::string publish_mqtt(const std::string &message, int qos) {
     const long expected_messages = l_arguments["duration"] * (
                                        expected_throughput / static_cast<long>(message.size()));
     tokens.reserve(std::max(expected_messages, l_arguments["messages"]));
-    size_t successful_messages = 0;
 
     try {
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
@@ -350,7 +349,7 @@ std::string publish_mqtt(const std::string &message, int qos) {
         publish_separator(client, true);
         return measurement;
     } catch (const mqtt::exception &e) {
-        successful_messages = delivered_messages(tokens);
+        size_t successful_messages = delivered_messages(tokens);
         std::cerr << "Failed to publish " << successful_messages << "th MQTT messages: " << e.what() << std::endl;
     }
     std::stringstream ss;
