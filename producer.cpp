@@ -238,7 +238,8 @@ bool print_debug(std::chrono::time_point<std::chrono::steady_clock> &next_print)
 }
 
 void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
-                            const mqtt::message_ptr &mqtt_ignore, std::vector<std::shared_ptr<mqtt::token> > &tokens) {
+                              const mqtt::message_ptr &mqtt_ignore,
+                              std::vector<std::shared_ptr<mqtt::token> > &tokens) {
     /**
     * @ payload_size - size of the message
     * @ client - configured connection to broker
@@ -324,7 +325,7 @@ std::string publish_mqtt(const std::string &message, int qos) {
     constexpr long expected_throughput = 1000000000l; // max 1 GB
     const long expected_messages = l_arguments["duration"] * (
                                        expected_throughput / static_cast<long>(message.size()));
-    tokens.reserve(std::max(expected_messages, l_arguments["messages"]));
+    tokens.reserve(std::max(expected_messages, l_arguments["messages"])); // to track async messages
 
     try {
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
@@ -352,10 +353,10 @@ std::string publish_mqtt(const std::string &message, int qos) {
     } catch (const mqtt::exception &e) {
         size_t successful_messages = delivered_messages(tokens);
         std::cerr << "Failed to publish " << successful_messages << "th MQTT messages: " << e.what() << std::endl;
+        std::stringstream ss;
+        ss << "[" << successful_messages << ",0,0,0] - and Failed because " << e.what() << std::endl;
+        return ss.str(); // NaN - measurement failed
     }
-    std::stringstream ss;
-    ss << "[" << delivered_messages(tokens) << ",0,0,0] - and Failed";
-    return ss.str(); // NaN - measurement failed
 }
 
 std::string publish(const std::string &protocol, const std::string &message, int qos) {
