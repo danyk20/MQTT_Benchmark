@@ -84,7 +84,9 @@ void publish_separator(mqtt::async_client &client, const bool disconnect = false
         std::cerr << "publishing of separator failed" << std::endl;
     }
     if (disconnect) {
-        client.disconnect()->wait_for(get_timeout(0));
+        if (client.is_connected()) {
+            client.disconnect()->wait_for(get_timeout(0));
+        }
     }
 }
 
@@ -287,7 +289,7 @@ void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, c
         }
     }
     // Wait for all publish tokens to complete
-    if (!tokens.back()->wait_for(get_timeout(payload_size))) {
+    if (!tokens.empty() && !tokens.back()->wait_for(get_timeout(payload_size))) {
         std::cout << get_timeout(payload_size) << " timeout waiting for message " << last_published << std::endl;
     }
 }
