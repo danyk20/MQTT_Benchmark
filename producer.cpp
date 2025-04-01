@@ -445,7 +445,7 @@ void print_flags() {
      */
     std::cout << "Supported arguments flags:" << std::endl;
     for (const auto &argument: s_arguments) {
-        std::cout << "  --" << argument.first << (argument.first == "debug") ? "" : " <value>" << std::endl;
+        std::cout << "  --" << argument.first << ((argument.first == "debug") ? "" : " <value>") << std::endl;
     }
     for (const auto &argument: l_arguments) {
         std::cout << "  --" << argument.first << " <value>" << std::endl;
