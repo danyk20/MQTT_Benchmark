@@ -194,12 +194,12 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
     return deadline;
 }
 
-void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &mqtt_message,
+void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &msg,
           std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published, const bool debug = false) {
     /**
     * @ payload_size - size of the message
     * @ client - configured connection to broker
-    * @ mqtt_message - prepared message
+    * @ msg - prepared message
     * @ tokens - list of all tokens for messages that have been already sent asynchronously
     * @ last_published - index of the last confirmed token (message has been sent) from the tokens list
     * @ debug - print debug message when buffer window moves
@@ -211,8 +211,8 @@ void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_p
         wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]),
                              payload_size);
     }
-    auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
-    tokens.push_back(client.publish(mqtt_message));
+    const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
+    tokens.push_back(client.publish(msg));
     if (debug) {
         std::cout << last_published << " - published and " << tokens.size() - last_published << " in buffer" <<
                 std::endl;
@@ -445,18 +445,10 @@ void print_flags() {
      */
     std::cout << "Supported arguments flags:" << std::endl;
     for (const auto &argument: s_arguments) {
-        if (argument.first == "debug") {
-            std::cout << "  --" << argument.first << std::endl;
-        } else {
-            std::cout << "  --" << argument.first << " <value>" << std::endl;
-        }
+        std::cout << "  --" << argument.first << (argument.first == "debug") ? "" : " <value>" << std::endl;
     }
     for (const auto &argument: l_arguments) {
-        if (argument.first == "debug") {
-            std::cout << "  --" << argument.first << std::endl;
-        } else {
-            std::cout << "  --" << argument.first << " <value>" << std::endl;
-        }
+        std::cout << "  --" << argument.first << " <value>" << std::endl;
     }
 }
 
