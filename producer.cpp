@@ -130,7 +130,7 @@ size_t delivered_messages(const std::vector<std::shared_ptr<mqtt::token> > &toke
      * @ tokens - list of all tokens for messages that have been already sent asynchronously
      */
     size_t index = tokens.size();
-    for (; index > 0 && !tokens[index - 1]->wait_for(0); index--) {
+    for (; index > 0 && tokens[index - 1]->get_return_code() != 0; index--) {
     }
     return index;
 }
@@ -146,13 +146,15 @@ void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
     * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
     */
     unsigned long long available_buffer = 100ull / percentage;
-    last_published += std::max(l_arguments["buffer"] / available_buffer, 1ull);
-    if (last_published >= tokens.size()) {
-        last_published = tokens.size() - 1;
+    size_t middle_index = std::max(l_arguments["buffer"] / available_buffer, 1ull) + last_published;
+    if (middle_index >= tokens.size()) {
+        middle_index = tokens.size() - 1;
     }
-    if (!tokens[last_published]->wait_for(get_timeout(payload_size))) {
-        std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << last_published << std::endl;
+    if (!tokens[middle_index]->wait_for(get_timeout(payload_size))) {
+        std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << middle_index << std::endl;
+        throw std::runtime_error("Buffer reached limit!");
     }
+    last_published = middle_index;
 }
 
 int get_mqtt_version(const std::string &user_input) {
@@ -351,11 +353,11 @@ std::string publish_mqtt(const std::string &message, int qos) {
 
         publish_separator(client, true);
         return measurement;
-    } catch (const mqtt::exception &e) {
+    } catch (const std::exception &e) {
         size_t successful_messages = delivered_messages(tokens);
         std::cerr << "Failed to publish " << successful_messages << "th MQTT messages: " << e.what() << std::endl;
         std::stringstream ss;
-        ss << "[" << successful_messages << ",0,0,0] - and Failed because " << e.what() << std::endl;
+        ss << "[" << successful_messages << ",0,0,0] - and Failed because " << e.what();
         return ss.str(); // NaN - measurement failed
     }
     catch (...) {
