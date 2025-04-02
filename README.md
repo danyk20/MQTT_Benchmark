@@ -188,6 +188,8 @@ sleep_until(next_message_timestamp)
 - `percentage` - once is buffer full wait until buffer is less than percentage % full *50*
 - `producers` - number of producers involved (used for storage structure): *1*
 - `version` - protocol version: *3.1.1*
+- `reconnect_after` - number of seconds to wait after client disconnect to connect again *1*
+- `reconnect_attempts` - number of attempts to connect again after initial connection fails *1*
 - `duration` - messages will be constantly sending for: *60*s
 - `middle` - begging and end of the measurement will be cut off except middle part of: *50*%
     - look into `time restricted measurement` pseudocode above
