@@ -37,7 +37,9 @@ std::map<std::string, long> l_arguments = {
     {"producers", 1},
     {"duration", 60}, // in seconds
     {"middle", 50}, // % between 1 and 100 duration of measurement
-    {"debug_period", 5}
+    {"debug_period", 5},
+    {"reconnect_after", 1},
+    {"reconnect_attempts", 1}
 };
 
 std::vector<int> parse_qos(const std::string &input) {
@@ -135,13 +137,14 @@ size_t delivered_messages(const std::vector<std::shared_ptr<mqtt::token> > &toke
     return index;
 }
 
-void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
-                          int percentage, size_t payload_size) {
+bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
+                          long long percentage, size_t payload_size) {
     /**
     * @ tokens - list of all tokens for messages that have been already sent asynchronously
     * @ last_published - index of the last confirmed token (message has been sent) from the tokens list
     * @ percentage - size of the full baffer that is reaquired to be free
     * @ payload_size - message size
+    * Returns true if there is free space in the buffer therwise false
     *
     * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
     */
@@ -152,9 +155,10 @@ void wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
     }
     if (!tokens[middle_index]->wait_for(get_timeout(payload_size))) {
         std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << middle_index << std::endl;
-        throw std::runtime_error("Buffer reached limit!");
+        return false;
     }
     last_published = middle_index;
+    return true;
 }
 
 int get_mqtt_version(const std::string &user_input) {
@@ -198,6 +202,21 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
     return deadline;
 }
 
+void reconnect(mqtt::async_client &client) {
+    /**
+     * Reconnect client after predefined delay if there are any allowed attemps left
+     *
+     * @ client - to be reconeneted with the same configuration
+     */
+    if (l_arguments["reconnect_attempts"] == 0) {
+        throw std::runtime_error("Client is not connected!");
+    }
+    std::cerr << "Reconnecting client!" << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(l_arguments["reconnect_after"]));
+    client.reconnect();
+    l_arguments["reconnect_attempts"]--;
+}
+
 void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &msg,
           std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published, const bool debug = false) {
     /**
@@ -212,11 +231,28 @@ void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_p
     */
     if (tokens.size() - last_published >= l_arguments["buffer"]) {
         // message buffer is full
-        wait_for_buffer_dump(tokens, last_published, static_cast<int>(l_arguments["percentage"]),
-                             payload_size);
+        if (!wait_for_buffer_dump(tokens, last_published, l_arguments["percentage"], payload_size)) {
+            if (client.is_connected()) {
+                throw std::runtime_error("Buffer reached limit!");
+            } else {
+                reconnect(client);
+                unsigned long long lost_messages = std::max(
+                    l_arguments["buffer"] / (100ull / l_arguments["percentage"]), 1ull);
+                last_published += lost_messages;
+                std::cerr << std::to_string(lost_messages) << " messages were lost!" << std::endl;
+            }
+        }
     }
     const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
-    tokens.push_back(client.publish(msg));
+    while (l_arguments["reconnect_attempts"] >= 0) {
+        if (client.is_connected()) {
+            tokens.push_back(client.publish(msg));
+            break;
+        } else {
+            reconnect(client);
+        }
+    }
+
     if (debug) {
         std::cout << last_published << " - published and " << tokens.size() - last_published << " in buffer" <<
                 std::endl;
@@ -506,6 +542,10 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["producers"] = std::stol(argv[++i]);
         } else if ((arg == "--middle") && i + 1 < argc) {
             l_arguments["middle"] = std::stol(argv[++i]);
+        } else if ((arg == "--reconnect_after") && i + 1 < argc) {
+            l_arguments["reconnect_after"] = std::stol(argv[++i]);
+        } else if ((arg == "--reconnect_attempts") && i + 1 < argc) {
+            l_arguments["reconnect_attempts"] = std::stol(argv[++i]);
         } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
             l_arguments["messages"] = std::stol(argv[++i]);
             l_arguments["duration"] = 0;
