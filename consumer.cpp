@@ -140,9 +140,20 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     if (!arguments["password"].empty()) {
         connOpts.set_password(arguments["password"]);
     }
-    client->connect(connOpts);
-    client->subscribe(arguments["topic"], std::stoi(arguments["qos"]));
-    client->start_consuming();
+    try {
+        client->connect(connOpts);
+        client->subscribe(arguments["topic"], std::stoi(arguments["qos"]));
+        client->start_consuming();
+    }
+    catch (mqtt::exception &e) {
+        if (e.get_return_code() == -1) {
+            std::cerr << "MQTT connection failed - check if the broker is running :" << e.what() << std::endl;
+        }
+        else {
+            std::cerr << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
+        }
+    }
+
     return client;
 }
 

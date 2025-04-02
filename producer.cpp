@@ -213,8 +213,12 @@ void reconnect(mqtt::async_client &client) {
     }
     std::cerr << "Reconnecting client!" << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(l_arguments["reconnect_after"]));
-    client.reconnect();
     l_arguments["reconnect_attempts"]--;
+    try {
+        client.reconnect();
+    } catch (const mqtt::exception &e) {
+        std::cerr << "reconnect failed" << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
+    }
 }
 
 void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &msg,
