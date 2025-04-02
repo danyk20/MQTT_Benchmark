@@ -18,7 +18,9 @@ std::map<std::string, std::string> arguments = {
     {"username", ""},
     {"password", ""},
     {"duration", "0"},
-    {"ratio", "80"}
+    {"ratio", "80"},
+    {"reconnect_after", "1"},
+    {"reconnect_attempts", "1"},
 };
 
 std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
@@ -47,7 +49,8 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::string path = arguments["directory"] + "/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments["output_file"];
+    std::string path = arguments["directory"] + "/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments[
+                           "output_file"];
     create_directories(std::filesystem::path(path).parent_path());
     std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {
@@ -213,6 +216,10 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["directory"] = argv[++i];
         } else if ((arg == "--version") && i + 1 < argc) {
             arguments["version"] = argv[++i];
+        } else if ((arg == "--reconnect_after") && i + 1 < argc) {
+            arguments["reconnect_after"] = argv[++i];
+        } else if ((arg == "--reconnect_attempts") && i + 1 < argc) {
+            arguments["reconnect_attempts"] = argv[++i];
         } else if (arg == "--help" || arg == "-h") {
             print_flags();
             return false;
@@ -265,7 +272,6 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
         if (arguments["debug"] == "True" && received_messages == 1) {
             std::cout << "Measurement phase started!" << std::endl;
         }
-
     }
     return true;
 }
@@ -298,7 +304,7 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
     return measurements.size() < stoi(arguments["separators"]);
 }
 
-void consume(const std::unique_ptr<mqtt::client>::pointer client) {
+void consume(std::unique_ptr<mqtt::client>::pointer client) {
     /**
      * Consume all messages from subscribed topic untill defined number of separators arrive or time based deadline is
      * reached. Several consecutive separators are counted as single separator.
@@ -313,14 +319,30 @@ void consume(const std::unique_ptr<mqtt::client>::pointer client) {
     size_t payload_size;
 
     while (measuring) {
-        if (client->try_consume_message(&messagePointer)) {
-            // message arrived
-            if (std::stoi(arguments["duration"])) {
-                measuring = time_measurement(received_messages, measurements, messagePointer, starting_phase,
-                                             measuring_phase);
-            } else {
-                measuring = count_measurement(received_messages, measurements, messagePointer, start_time, payload_size);
+        if (client->is_connected()) {
+            if (client->try_consume_message(&messagePointer)) {
+                if (messagePointer) {
+                    // message arrived
+                    if (std::stoi(arguments["duration"])) {
+                        measuring = time_measurement(received_messages, measurements, messagePointer, starting_phase,
+                                                     measuring_phase);
+                    } else {
+                        measuring = count_measurement(received_messages, measurements, messagePointer, start_time,
+                                                      payload_size);
+                    }
+                } else {
+                    client->disconnect();
+                    std::cerr << "Connection corrupted!" << std::endl;
+                }
             }
+        } else if (std::stoi(arguments["reconnect_attempts"]) > 0) {
+            std::cerr << "Reconnecting client!" << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(std::stoi(arguments["reconnect_after"])));
+            client = prepare_consumer().release();
+            arguments["reconnect_attempts"] = std::to_string(std::stoi(arguments["reconnect_attempts"]) - 1);
+        } else {
+            std::cerr << "Fatal error - Client disconnected!" << std::endl;
+            break;
         }
     }
     store_string(format_output(measurements)); // save all measured data into file
@@ -338,7 +360,7 @@ std::vector<int> parse_qos(const std::string &input) {
     return numbers;
 }
 
-void clear_old_data(const std::string& path) {
+void clear_old_data(const std::string &path) {
     /**
      * Remove all previous measurments
      *
@@ -347,7 +369,7 @@ void clear_old_data(const std::string& path) {
     const std::filesystem::path dirPath = path;
     try {
         if (exists(dirPath)) {
-            for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
+            for (const auto &entry: std::filesystem::directory_iterator(dirPath)) {
                 remove_all(entry.path());
             }
             if (arguments["debug"] == "True") {
@@ -356,7 +378,7 @@ void clear_old_data(const std::string& path) {
         } else {
             std::cerr << "Directory does not exist: " << dirPath << std::endl;
         }
-    } catch (const std::filesystem::filesystem_error& e) {
+    } catch (const std::filesystem::filesystem_error &e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
 }

@@ -233,6 +233,8 @@ e.g. received payload's sizes:
 - `qos` - QoS list of more values separated by comma *1*
 - `username` - authentication on broker *\<blank>*
 - `password` - authentication on broker *\<blank>*
+- `reconnect_after` - number of seconds to wait after client disconnect to connect again *1*
+- `reconnect_attempts` - number of attempts to connect again after initial connection fails *1*
 - `duration` - total measurement duration (disabled by default) *0*s
 - `ratio` - ratio of overall duration that will be measured (starting phase is complement before this phase nad it will
   not be measured) *80*%
