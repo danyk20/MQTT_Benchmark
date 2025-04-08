@@ -144,12 +144,10 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
         client->connect(connOpts);
         client->subscribe(arguments["topic"], std::stoi(arguments["qos"]));
         client->start_consuming();
-    }
-    catch (mqtt::exception &e) {
+    } catch (mqtt::exception &e) {
         if (e.get_return_code() == -1) {
             std::cerr << "MQTT connection failed - check if the broker is running :" << e.what() << std::endl;
-        }
-        else {
+        } else {
             std::cerr << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
         }
     }
@@ -347,10 +345,12 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
                 }
             }
         } else if (std::stoi(arguments["reconnect_attempts"]) > 0) {
-            std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Reconnecting client!" << std::endl;
+            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Reconnecting client!" <<
+                    std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(std::stoi(arguments["reconnect_after"])));
             client = prepare_consumer().release();
-            std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Client Reconnected!" << std::endl;
+            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
+                    std::endl;
             arguments["reconnect_attempts"] = std::to_string(std::stoi(arguments["reconnect_attempts"]) - 1);
         } else {
             std::cerr << "Fatal error - Client disconnected!" << std::endl;

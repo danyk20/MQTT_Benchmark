@@ -45,14 +45,17 @@ std::map<std::string, long> l_arguments = {
 static bool is_reconnecting = false;
 
 static void connected_handler(const std::string &cause) {
-    if (cause != "connect onSuccess called") { // except initial connect
-        std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Connected : " << cause << std::endl;
+    if (cause != "connect onSuccess called") {
+        // except initial connect
+        std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Connected : " << cause <<
+                std::endl;
     }
     is_reconnecting = false;
 }
 
 static void disconnected_handler(const std::string &cause) {
-    std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Disconnected : " << cause << std::endl;
+    std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Disconnected : " << cause <<
+            std::endl;
     is_reconnecting = true;
 }
 
