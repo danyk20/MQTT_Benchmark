@@ -347,9 +347,10 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
                 }
             }
         } else if (std::stoi(arguments["reconnect_attempts"]) > 0) {
-            std::cerr << "Reconnecting client!" << std::endl;
+            std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Reconnecting client!" << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(std::stoi(arguments["reconnect_after"])));
             client = prepare_consumer().release();
+            std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Client Reconnected!" << std::endl;
             arguments["reconnect_attempts"] = std::to_string(std::stoi(arguments["reconnect_attempts"]) - 1);
         } else {
             std::cerr << "Fatal error - Client disconnected!" << std::endl;

@@ -42,6 +42,20 @@ std::map<std::string, long> l_arguments = {
     {"reconnect_attempts", 1}
 };
 
+static bool is_reconnecting = false;
+
+static void connected_handler(const std::string &cause) {
+    if (cause != "connect onSuccess called") { // except initial connect
+        std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Connected : " << cause << std::endl;
+    }
+    is_reconnecting = false;
+}
+
+static void disconnected_handler(const std::string &cause) {
+    std::cerr << std::chrono::steady_clock::now().time_since_epoch() << " Disconnected : " << cause << std::endl;
+    is_reconnecting = true;
+}
+
 std::vector<int> parse_qos(const std::string &input) {
     /**
      * @ input string input from the user
@@ -153,10 +167,18 @@ bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
     if (middle_index >= tokens.size()) {
         middle_index = tokens.size() - 1;
     }
-    if (!tokens[middle_index]->wait_for(get_timeout(payload_size))) {
-        std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << middle_index << std::endl;
-        return false;
+
+    try {
+        if (!tokens[middle_index]->wait_for(get_timeout(payload_size))) {
+            std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << middle_index << std::endl;
+            return false;
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Messages from last batch might be lost " << e.what() << std::endl;
+        last_published = middle_index;
+        return tokens[middle_index]->is_complete();
     }
+
     last_published = middle_index;
     return true;
 }
@@ -202,25 +224,6 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
     return deadline;
 }
 
-void reconnect(mqtt::async_client &client) {
-    /**
-     * Reconnect client after predefined delay if there are any allowed attemps left
-     *
-     * @ client - to be reconeneted with the same configuration
-     */
-    if (l_arguments["reconnect_attempts"] == 0) {
-        throw std::runtime_error("Client is not connected!");
-    }
-    std::cerr << "Reconnecting client!" << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(l_arguments["reconnect_after"]));
-    l_arguments["reconnect_attempts"]--;
-    try {
-        client.reconnect();
-    } catch (const mqtt::exception &e) {
-        std::cerr << "reconnect failed" << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
-    }
-}
-
 void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &msg,
           std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published, const bool debug = false) {
     /**
@@ -239,23 +242,15 @@ void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_p
             if (client.is_connected()) {
                 throw std::runtime_error("Buffer reached limit!");
             } else {
-                reconnect(client);
-                unsigned long long lost_messages = std::max(
-                    l_arguments["buffer"] / (100ull / l_arguments["percentage"]), 1ull);
-                last_published += lost_messages;
-                std::cerr << std::to_string(lost_messages) << " messages were lost!" << std::endl;
+                throw std::runtime_error("Buffer couldn't be released because client is disconnected!");
             }
         }
     }
     const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
-    while (l_arguments["reconnect_attempts"] >= 0) {
-        if (client.is_connected()) {
-            tokens.push_back(client.publish(msg));
-            break;
-        } else {
-            reconnect(client);
-        }
+    while (is_reconnecting) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    tokens.push_back(client.publish(msg));
 
     if (debug) {
         std::cout << last_published << " - published and " << tokens.size() - last_published << " in buffer" <<
@@ -273,8 +268,7 @@ bool print_debug(std::chrono::time_point<std::chrono::steady_clock> &next_print)
     * Returns true only if from last time when it returned true passed at least defined number of seconds otherwise false
     */
 
-    const std::chrono::time_point current_time = std::chrono::steady_clock::now();
-    if (current_time >= next_print) {
+    if (const std::chrono::time_point current_time = std::chrono::steady_clock::now(); current_time >= next_print) {
         next_print = current_time + std::chrono::seconds(l_arguments["debug_period"]);
         return true;
     }
@@ -356,12 +350,15 @@ std::string publish_mqtt(const std::string &message, int qos) {
     tokens.reserve(std::max(expected_messages, l_arguments["messages"])); // to track async messages
 
     try {
-        mqtt::async_client client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["client_id"],
-                                  static_cast<int>(l_arguments["buffer"]));
+        auto client = mqtt::async_client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["client_id"],
+                                         static_cast<int>(l_arguments["buffer"]));
+
+        client.set_connection_lost_handler(disconnected_handler);
+        client.set_connected_handler(connected_handler);
 
         auto connOpts = mqtt::connect_options_builder()
                 .clean_session()
-
+                .automatic_reconnect(true)
                 .mqtt_version(get_mqtt_version(s_arguments["version"]))
                 .finalize();
         if (!s_arguments["username"].empty()) {
