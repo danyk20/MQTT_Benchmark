@@ -19,8 +19,6 @@ std::map<std::string, std::string> arguments = {
     {"password", ""},
     {"duration", "0"},
     {"ratio", "80"},
-    {"reconnect_after", "1"},
-    {"reconnect_attempts", "1"},
 };
 
 std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
@@ -225,10 +223,6 @@ bool set_parameters(int argc, char *argv[]) {
             arguments["directory"] = argv[++i];
         } else if ((arg == "--version") && i + 1 < argc) {
             arguments["version"] = argv[++i];
-        } else if ((arg == "--reconnect_after") && i + 1 < argc) {
-            arguments["reconnect_after"] = argv[++i];
-        } else if ((arg == "--reconnect_attempts") && i + 1 < argc) {
-            arguments["reconnect_attempts"] = argv[++i];
         } else if (arg == "--help" || arg == "-h") {
             print_flags();
             return false;
@@ -344,17 +338,14 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
                     std::cerr << "Connection corrupted!" << std::endl;
                 }
             }
-        } else if (std::stoi(arguments["reconnect_attempts"]) > 0) {
-            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Reconnecting client!" <<
-                    std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(std::stoi(arguments["reconnect_after"])));
-            client = prepare_consumer().release();
-            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
-                    std::endl;
-            arguments["reconnect_attempts"] = std::to_string(std::stoi(arguments["reconnect_attempts"]) - 1);
         } else {
-            std::cerr << "Fatal error - Client disconnected!" << std::endl;
-            break;
+            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Reconnecting client! - " <<
+                    received_messages << " messages received" << std::endl;
+            client = prepare_consumer().release();
+            if (client->is_connected()) {
+                std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
+                    std::endl;
+            }
         }
     }
     store_string(format_output(measurements)); // save all measured data into file
