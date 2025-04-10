@@ -49,6 +49,7 @@ static void connected_handler(const std::string &cause) {
         // except initial connect
         std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Connected : " << cause <<
                 std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(3)); // TO DO Remove constant
     }
     is_reconnecting = false;
 }
@@ -178,8 +179,13 @@ bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
         }
     } catch (const std::exception &e) {
         std::cerr << "Messages from last batch might be lost " << e.what() << std::endl;
-        last_published = middle_index;
-        return tokens[middle_index]->is_complete();
+        for (auto i = last_published; i < tokens.size() - 1; ++i) {
+            if (!tokens[i]->is_complete()) {
+                last_published = i - 1;
+                break;
+            }
+        }
+        return tokens[last_published]->is_complete();
     }
 
     last_published = middle_index;
@@ -241,12 +247,14 @@ void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_p
     */
     if (tokens.size() - last_published >= l_arguments["buffer"]) {
         // message buffer is full
-        if (!wait_for_buffer_dump(tokens, last_published, l_arguments["percentage"], payload_size)) {
-            if (client.is_connected()) {
-                throw std::runtime_error("Buffer reached limit!");
-            } else {
-                throw std::runtime_error("Buffer couldn't be released because client is disconnected!");
+        while (true) {
+            if (!wait_for_buffer_dump(tokens, last_published, l_arguments["percentage"], payload_size)) {
+                if (client.is_connected()) {
+                    throw std::runtime_error("Buffer reached limit!");
+                }
+                std::cerr << "Buffer couldn't be freed because the client is disconnected!"; // TO DO remove too often print
             }
+            break;
         }
     }
     const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
