@@ -8,6 +8,12 @@
 #include <thread>
 #include <filesystem>
 
+#include <mosquitto.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 std::map<std::string, std::string> s_arguments = {
     {"debug", "False"}, // debug print
     {"fresh", "False"}, // remove all previous measurements
@@ -15,7 +21,7 @@ std::map<std::string, std::string> s_arguments = {
     {"output", "producer_results.txt"},
     {"topic", "test"}, // subscribed topic
     {"client_id", ""},
-    {"protocol", "MQTT"}, //
+    {"library", "paho"}, //
     {"version", "3.1.1"},
     {"qos", "1"},
     {"username", ""},
@@ -252,7 +258,8 @@ void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_p
                 if (client.is_connected()) {
                     throw std::runtime_error("Buffer reached limit!");
                 }
-                std::cerr << "Buffer couldn't be freed because the client is disconnected!"; // TO DO remove too often print
+                std::cerr << "Buffer couldn't be freed because the client is disconnected!";
+                // TO DO remove too often print
             }
             break;
         }
@@ -341,7 +348,7 @@ void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, c
     }
 }
 
-std::string publish_mqtt(const std::string &message, int qos) {
+std::string publish_paho(const std::string &message, int qos) {
     /**
      * Send messages asynchronously and measure that time. After sending all messages send one empty payload and close
      * the connection.
@@ -417,20 +424,54 @@ std::string publish_mqtt(const std::string &message, int qos) {
     }
 }
 
-std::string publish(const std::string &protocol, const std::string &message, int qos) {
+std::string publish_mosquitto(const std::string &string, int qos) {
+    mosquitto_lib_init();
+
+    mosquitto *mosq = mosquitto_new(NULL, true, NULL);
+    if (mosq == NULL) {
+        fprintf(stderr, "Error: Out of memory.\n");
+        return "Fail to create client";
+    }
+
+    int rc = mosquitto_connect(mosq, std::getenv("BROKER_IP"), std::stoi(std::getenv("MQTT_PORT")), 60);
+    if (rc != MOSQ_ERR_SUCCESS) {
+        mosquitto_destroy(mosq);
+        fprintf(stderr, "Error: %s\n", mosquitto_strerror(rc));
+        return "Fail connect";
+    }
+
+    rc = mosquitto_loop_start(mosq);
+    if (rc != MOSQ_ERR_SUCCESS) {
+        mosquitto_destroy(mosq);
+        fprintf(stderr, "Error: %s\n", mosquitto_strerror(rc));
+        return "Fail network loop";
+    }
+
+    int return_code = mosquitto_publish(mosq, NULL, s_arguments["topic"].c_str(), strlen(string.c_str()), &string, qos,
+                                        false);
+    if (return_code != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(return_code));
+    }
+    mosquitto_lib_cleanup();
+    return "Success";
+}
+
+std::string publish(const std::string &library, const std::string &message, int qos) {
     /**
-    * Send messages based on given protocol.
+    * Send messages based on given library.
     *
-    * @protocol - currently only "mqtt" supported
+    * @library - currently only "mqtt" supported
     * @message - payload to publish
     *
     * Returns measurement as string of following format:
     * [number_of_messages,single-message_size,B/s,number_of_message/s]
     */
-    if (protocol == "MQTT" || protocol == "mqtt") {
-        return publish_mqtt(message, qos);
+    if (library == "PAHO" || library == "paho") {
+        return publish_paho(message, qos);
+    } else if (library == "MOSQUITTO" || library == "mosquitto") {
+        return publish_mosquitto(message, qos);
     }
-    std::cerr << "Unsupported protocol: " << protocol << std::endl;
+    std::cerr << "Unsupported library: " << library << std::endl;
     return "";
 }
 
@@ -526,8 +567,8 @@ bool set_parameters(int argc, char *argv[]) {
             s_arguments["fresh"] = "True";
         } else if ((arg == "-s" || arg == "--separator") && i + 1 < argc) {
             s_arguments["separator"] = argv[++i];
-        } else if (arg == "--protocol" && i + 1 < argc) {
-            s_arguments["protocol"] = argv[++i];
+        } else if (arg == "--library" && i + 1 < argc) {
+            s_arguments["library"] = argv[++i];
         } else if (arg == "--directory" && i + 1 < argc) {
             s_arguments["directory"] = argv[++i];
         } else if (arg == "--version" && i + 1 < argc) {
@@ -613,7 +654,7 @@ int main(int argc, char *argv[]) {
         l_arguments["qos"] = qos;
         for (int i = 0; i < l_arguments["repetitions"]; ++i) {
             for (const auto &message: messages) {
-                measurements.emplace_back(publish(s_arguments["protocol"], message,
+                measurements.emplace_back(publish(s_arguments["library"], message,
                                                   static_cast<int>(l_arguments["qos"])));
             }
             store_string(format_output(measurements));

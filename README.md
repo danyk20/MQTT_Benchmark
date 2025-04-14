@@ -169,7 +169,7 @@ sleep_until(next_message_timestamp)
 - `debug` - print debug print when buffer reach the limit: *False*
 - `fresh` - delete all previous measurements: *False*
 - `directory` - path to the directory where all measurements will be stored: *data/producer*
-- `protocol` - which protocol to use *MQTT*
+- `library` - which library to use *PAHO*
 - `separator` - send separator after last message of each payload batch *True*
 - `output` - output file: *consumer_results.txt*
 - `topic` - topic to subscribe: *test*
