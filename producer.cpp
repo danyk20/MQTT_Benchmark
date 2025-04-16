@@ -9,9 +9,7 @@
 #include <filesystem>
 
 #include <mosquitto.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
 #include <unistd.h>
 
 std::map<std::string, std::string> s_arguments = {
@@ -49,6 +47,7 @@ std::map<std::string, long> l_arguments = {
 };
 
 static bool is_reconnecting = false;
+static long long mosquitto_published = 0;
 
 static void connected_handler(const std::string &cause) {
     if (cause != "connect onSuccess called") {
@@ -88,13 +87,13 @@ std::vector<int> parse_qos(const std::string &input) {
 long get_timeout(const size_t payload) {
     /**
      * @ payload size in B
-     * Returns timeout which is 1s or more based on Buffer size and payload size
+     * Returns timeout in seconds which is 1s or more based on Buffer size and payload size
      */
     const long timeout = l_arguments["timeout"] * l_arguments["buffer"] * static_cast<long>(payload / 1024);
     if (timeout < l_arguments["min_timeout"]) {
         return l_arguments["min_timeout"];
     }
-    return timeout;
+    return timeout / 1000;
 }
 
 void publish_separator(mqtt::async_client &client, const bool disconnect = false) {
@@ -112,6 +111,29 @@ void publish_separator(mqtt::async_client &client, const bool disconnect = false
     if (disconnect) {
         if (client.is_connected()) {
             client.disconnect()->wait_for(get_timeout(0));
+        }
+    }
+}
+
+
+void publish_separator(mosquitto &mosq, const bool disconnect = false) {
+    /**
+     * Send empty paylod as a separator for time measurment on the consumer and disconnect from the broker
+     *
+     * @client - connection object
+     */
+    const std::string empty_message;
+    constexpr int qos = 1;
+    const char *topic = s_arguments["topic"].c_str();
+
+    if (const int return_code = mosquitto_publish(&mosq, nullptr, topic, 0, &empty_message, qos, false);
+        return_code != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(return_code));
+    }
+
+    if (disconnect) {
+        if (const int return_code = mosquitto_disconnect(&mosq); return_code != MOSQ_ERR_SUCCESS) {
+            std::cerr << "Error disconnecting mosquitto " << return_code << std::endl;
         }
     }
 }
@@ -159,6 +181,31 @@ size_t delivered_messages(const std::vector<std::shared_ptr<mqtt::token> > &toke
     for (; index > 0 && tokens[index - 1]->get_return_code() != 0; index--) {
     }
     return index;
+}
+
+bool wait_for_buffer_dump(const long long sent, const long long percentage, const size_t payload_size) {
+    /**
+    * @ sent - number of messaged that have been sent regadless of their acknowledgment
+    * @ percentage - size of the full baffer that is reaquired to become free
+    * @ payload_size - message size
+    * Returns true if there is free space in the buffer therwise false
+    *
+    * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
+    */
+    const unsigned long long max_occupied_buffer = (100ull / (100 - percentage)) * l_arguments["buffer"];
+
+    std::chrono::time_point<std::chrono::steady_clock> deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(get_timeout(payload_size));
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (sent - mosquitto_published < max_occupied_buffer) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    const long long publishing_message = (mosquitto_published + 1);
+    std::cout << get_timeout(payload_size) << "s timeout waiting for message " << publishing_message << std::endl;
+    return false;
 }
 
 bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
@@ -235,8 +282,45 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
     } else {
         phase_duration = l_arguments["duration"] * (100 - l_arguments["middle"]) / 200;
     }
-    std::chrono::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(phase_duration);
+    const std::chrono::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(phase_duration);
     return deadline;
+}
+
+void send(size_t payload_size, mosquitto &mosq, const char *msg, const char *topic, const int qos,
+          long long &sent, const bool debug = false) {
+    /**
+    * @ payload_size - size of the message
+    * @ client - configured connection to broker
+    * @ msg - prepared message
+    * @ tokens - list of all tokens for messages that have been already sent asynchronously
+    * @ last_published - index of the last confirmed token (message has been sent) from the tokens list
+    * @ debug - print debug message when buffer window moves
+    *
+    * Sends single message
+    */
+    while (is_reconnecting) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    if (sent - mosquitto_published >= l_arguments["buffer"]) {
+        // message buffer is full
+        while (true) {
+            if (!wait_for_buffer_dump(sent, l_arguments["percentage"], payload_size)) {
+                std::cerr << "Buffer couldn't be freed!";
+            }
+            break;
+        }
+    }
+    if (const int return_code = mosquitto_publish(&mosq, nullptr, topic, payload_size, msg, qos, false);
+        return_code != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(return_code));
+    } else {
+        sent++;
+    }
+    const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
+    if (debug) {
+        std::cout << sent << " - published and " << sent - mosquitto_published << " in buffer" << std::endl;
+    }
+    std::this_thread::sleep_until(next_run_time);
 }
 
 void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_ptr &msg,
@@ -424,36 +508,159 @@ std::string publish_paho(const std::string &message, int qos) {
     }
 }
 
-std::string publish_mosquitto(const std::string &string, int qos) {
-    mosquitto_lib_init();
+void on_connect(struct mosquitto *mosq, void *obj, const int reason_code) {
+    printf("%lld connected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
+           mosquitto_connack_string(reason_code));
+    std::this_thread::sleep_for(std::chrono::seconds(5)); // TO DO Remove constant
+    is_reconnecting = false;
+}
 
-    mosquitto *mosq = mosquitto_new(NULL, true, NULL);
-    if (mosq == NULL) {
+void on_publish(struct mosquitto *mosq, void *obj, const int id) {
+    mosquitto_published++;
+}
+
+void on_disconnect(struct mosquitto *mosq, void *p, int i) {
+    is_reconnecting = true;
+    printf("%lld Disconnected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
+           mosquitto_connack_string(i));
+}
+
+mosquitto *get_mosquitto() {
+    /**
+     * Initilize Mosquitto client
+     */
+    mosquitto_lib_init();
+    const char *client_id = s_arguments["client_id"].empty() ? nullptr : s_arguments["client_id"].c_str();
+    mosquitto *mosq = mosquitto_new(client_id, true, nullptr);
+    if (mosq == nullptr) {
         fprintf(stderr, "Error: Out of memory.\n");
-        return "Fail to create client";
+        throw std::runtime_error("Fail to create client");
     }
+
+    const char *username = s_arguments["username"].empty() ? nullptr : s_arguments["username"].c_str();
+    const char *password = s_arguments["password"].empty() ? nullptr : s_arguments["password"].c_str();
+
+    mosquitto_username_pw_set(mosq, username, password);
+
+    mosquitto_connect_callback_set(mosq, on_connect);
+    mosquitto_publish_callback_set(mosq, on_publish);
+    mosquitto_disconnect_callback_set(mosq, on_disconnect);
 
     int rc = mosquitto_connect(mosq, std::getenv("BROKER_IP"), std::stoi(std::getenv("MQTT_PORT")), 60);
     if (rc != MOSQ_ERR_SUCCESS) {
         mosquitto_destroy(mosq);
         fprintf(stderr, "Error: %s\n", mosquitto_strerror(rc));
-        return "Fail connect";
+        throw std::runtime_error("Fail connect");
     }
 
     rc = mosquitto_loop_start(mosq);
     if (rc != MOSQ_ERR_SUCCESS) {
         mosquitto_destroy(mosq);
         fprintf(stderr, "Error: %s\n", mosquitto_strerror(rc));
-        return "Fail network loop";
+        throw std::runtime_error("Fail network loop");
     }
 
-    int return_code = mosquitto_publish(mosq, NULL, s_arguments["topic"].c_str(), strlen(string.c_str()), &string, qos,
-                                        false);
-    if (return_code != MOSQ_ERR_SUCCESS) {
-        fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(return_code));
+    return mosq;
+}
+
+long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, const int qos) {
+    /**
+    * @ mosq - configured connection to broker
+    * @ message - message as a string
+    * @ qos - Quality of service
+    * Returns number of messages excluding separators
+    *
+    * Sends multiple messages - restricted via time or number of messages
+    */
+    const size_t payload_len = message.size();
+    std::string ignore = message;
+    ignore.replace(0, 1, "!");
+    const char *message_ignore_ptr = ignore.c_str();
+    const char *message_ptr = message.c_str();
+    const auto topic = s_arguments["topic"].c_str();
+    const bool debug = s_arguments["debug"] == "True";
+    long long measured_messages = 0;
+    std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
+
+    long long sent = 0;
+    if (l_arguments["duration"] == 0) {
+        sent++; // initial separator
+        // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
+        for (long long i = 0; i < l_arguments["messages"]; ++i) {
+            send(payload_len, mosq, message_ptr, topic, qos, sent, debug && print_debug(next_print));
+        }
+        measured_messages = sent - 1;
+        std::chrono::time_point<std::chrono::steady_clock> deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(get_timeout(payload_len));
+        while (mosquitto_published < sent) {
+            if (std::chrono::steady_clock::now() > deadline) {
+                if (debug) {
+                    std::cerr << "Timeout waiting for message id: " << mosquitto_published << std::endl;
+                }
+                break;
+            }
+        }
+    } else {
+        long long phase_0_messages = 0;
+        // Starting phase: 0
+        if (debug) {
+            std::cout << " Starting phase " << std::endl;
+        }
+        auto end_time = get_phase_deadline(0);
+        while (std::chrono::steady_clock::now() < end_time) {
+            send(payload_len, mosq, message_ignore_ptr, topic, qos, sent, debug && print_debug(next_print));
+        }
+        phase_0_messages = sent;
+        // Measurement phase: 1
+        if (debug) {
+            std::cout << " Measurement phase " << std::endl;
+        }
+
+        end_time = get_phase_deadline(1);
+        while (std::chrono::steady_clock::now() < end_time) {
+            send(payload_len, mosq, message_ptr, topic, qos, sent, debug && print_debug(next_print));
+        }
+        measured_messages = sent - phase_0_messages;
+        // Cleanup phase: 2
+        if (debug) {
+            std::cout << " Cleanup phase " << std::endl;
+        }
+        end_time = get_phase_deadline(2);
+        while (std::chrono::steady_clock::now() < end_time) {
+            send(payload_len, mosq, message_ignore_ptr, topic, qos, sent, debug && print_debug(next_print));
+        }
     }
+    return measured_messages;
+}
+
+
+std::string publish_mosquitto(const std::string &message, const int qos) {
+    /**
+    * Send messages asynchronously and measure that time. After sending all messages send one empty payload and close
+    * the connection.
+    *
+    * @message - payload to publish
+    * @qos - Quality of Service
+    *
+    * Returns measurement as string of following format:
+    * [number_of_messages,single-message_size,B/s,number_of_message/s]
+    */
+    mosquitto *mosq = get_mosquitto();
+    const auto payload_len = message.size();
+    std::string ignore = message;
+    ignore.replace(0, 1, "!");
+
+    // first non measured message
+    publish_separator(*mosq);
+
+    const auto start_time = std::chrono::steady_clock::now();
+
+    const long long sent_messages = perform_publishing_cycle(*mosq, message, qos);
+    std::string measurement = process_measurement(start_time, payload_len, sent_messages);
+
+    publish_separator(*mosq, true);
     mosquitto_lib_cleanup();
-    return "Success";
+    return measurement;
 }
 
 std::string publish(const std::string &library, const std::string &message, int qos) {
