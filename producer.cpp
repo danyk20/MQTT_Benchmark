@@ -42,8 +42,6 @@ std::map<std::string, long> l_arguments = {
     {"duration", 60}, // in seconds
     {"middle", 50}, // % between 1 and 100 duration of measurement
     {"debug_period", 5},
-    {"reconnect_after", 1},
-    {"reconnect_attempts", 1}
 };
 
 static bool is_reconnecting = false;
@@ -802,10 +800,6 @@ bool set_parameters(int argc, char *argv[]) {
             l_arguments["producers"] = std::stol(argv[++i]);
         } else if ((arg == "--middle") && i + 1 < argc) {
             l_arguments["middle"] = std::stol(argv[++i]);
-        } else if ((arg == "--reconnect_after") && i + 1 < argc) {
-            l_arguments["reconnect_after"] = std::stol(argv[++i]);
-        } else if ((arg == "--reconnect_attempts") && i + 1 < argc) {
-            l_arguments["reconnect_attempts"] = std::stol(argv[++i]);
         } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
             l_arguments["messages"] = std::stol(argv[++i]);
             l_arguments["duration"] = 0;
