@@ -12,6 +12,8 @@ parametrized by several key variables:
 
 ## Prerequisites
 
+-
+
 - Install cmake
 - ```shell
    sudo dnf install -y cmake
@@ -40,6 +42,17 @@ parametrized by several key variables:
          cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
          sudo cmake --build build/ --target install
          cd ..
+         git clone https://github.com/eclipse-mosquitto/mosquitto.git
+         cd mosquitto
+         git checkout v2.0.18
+         git submodule init
+         git submodule update
+         cd mosquitto/
+         mkdir build
+         cd build/
+         cmake -B. -S ..
+         make -j ${nprocs}
+         cd ../..
          ```
 
   - b) offline machine (CERN CMS intranet) + machine with internet 
@@ -110,6 +123,7 @@ II)
    ```shell
    git clone https://github.com/danyk20/MQTT_Benchmark.git
    cd MQTT_Benchmark
+   export MQTT_BENCHMARK_HOME=`pwd`
    ```
 
 1. Export environment variables
@@ -122,6 +136,13 @@ II)
     ```shell
     g++ -o produce producer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
     g++ -o consume consumer.cpp -L /usr/local/lib64 -lpaho-mqttpp3 -lpaho-mqtt3c
+    ```
+   
+    ```shell
+    mkdir build
+    cd build
+    cmake -B . -S ..
+    make -j $nprocs  
     ```
 
 3. Run consumer
