@@ -34,8 +34,8 @@ if(NOT MOSQUITTO_LIB)
 endif()
 
 # Executables
-add_executable(consumer consumer.cpp)
-add_executable(producer producer.cpp)
+add_executable(consume consumer.cpp)
+add_executable(produce producer.cpp)
 
 # Link libraries
 target_link_libraries(consumer PRIVATE
