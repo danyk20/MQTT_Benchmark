@@ -1,6 +1,9 @@
 # MQTT Benchmark
 
-Publish and consume messages of different payloads and evaluate how long does it take.
+Publish and consume messages and evaluate how long it takes for a given number of messages or how many messages can be
+sent within a given time frame. There are many parameters (flags) than can be adjusted for specific requirements.
+
+![Publisher - Broker - Consumer](./diagrams/MQTT_Benchmark.svg)
 
 ## Prerequisites
 
@@ -44,11 +47,13 @@ Publish and consume messages of different payloads and evaluate how long does it
 - Setup MQTT brokers with Docker Compose or manually
 
 a)
+
 ```shell
   sudo docker compose up --build --detach
 ```
 
 b)
+
 ```shell
   sudo docker build -t rabbitmq-benchmark:0.0.1 ./rabbitmq
   sudo docker run --rm -it -d --name rabbitmq -p 1888:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
