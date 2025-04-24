@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.26)
 project(MQTT_Benchmark VERSION 1.0)
 
 # Compiler settings
@@ -12,6 +12,7 @@ set(CMAKE_INSTALL_RPATH "/usr/local/lib;/opt/homebrew/lib")  # Added Homebrew pa
 include_directories(
         /usr/local/include
         /opt/homebrew/include  # Homebrew (Apple Silicon)
+        $ENV{MQTT_BENCHMARK_HOME}/mosquitto/include
 )
 
 # --- Paho MQTT Libraries ---
@@ -27,7 +28,7 @@ if(NOT PAHO_MQTT3C_LIBRARY)
 endif()
 
 # --- Mosquitto Library ---
-find_library(MOSQUITTO_LIB mosquitto PATHS /usr/local/lib /opt/homebrew/lib)
+find_library(MOSQUITTO_LIB mosquitto PATHS $ENV{MQTT_BENCHMARK_HOME}/mosquitto/build/lib /usr/local/lib /opt/homebrew/lib)
 if(NOT MOSQUITTO_LIB)
     message(FATAL_ERROR "mosquitto library not found")
 endif()
