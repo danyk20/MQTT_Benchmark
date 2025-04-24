@@ -8,7 +8,7 @@
 #include <thread>
 #include <filesystem>
 
-#include <mosquitto.h>
+#include "mosquitto.h"
 #include <cstdio>
 #include <unistd.h>
 
@@ -85,13 +85,13 @@ std::vector<int> parse_qos(const std::string &input) {
 long get_timeout(const size_t payload) {
     /**
      * @ payload size in B
-     * Returns timeout in seconds which is 1s or more based on Buffer size and payload size
+     * Returns timeout in miliseconds which is 1s or more based on Buffer size and payload size
      */
     const long timeout = l_arguments["timeout"] * l_arguments["buffer"] * static_cast<long>(payload / 1024);
     if (timeout < l_arguments["min_timeout"]) {
         return l_arguments["min_timeout"];
     }
-    return timeout / 1000;
+    return timeout;
 }
 
 void publish_separator(mqtt::async_client &client, const bool disconnect = false) {
@@ -190,10 +190,10 @@ bool wait_for_buffer_dump(const long long sent, const long long percentage, cons
     *
     * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
     */
-    const unsigned long long max_occupied_buffer = (100ull / (100 - percentage)) * l_arguments["buffer"];
+    const long long max_occupied_buffer = ((100 - percentage) * l_arguments["buffer"]) / 100;
 
-    std::chrono::time_point<std::chrono::steady_clock> deadline =
-            std::chrono::steady_clock::now() + std::chrono::seconds(get_timeout(payload_size));
+    const std::chrono::time_point<std::chrono::steady_clock> deadline =
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(get_timeout(payload_size));
 
     while (std::chrono::steady_clock::now() < deadline) {
         if (sent - mosquitto_published < max_occupied_buffer) {
@@ -202,7 +202,9 @@ bool wait_for_buffer_dump(const long long sent, const long long percentage, cons
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     const long long publishing_message = (mosquitto_published + 1);
-    std::cout << get_timeout(payload_size) << "s timeout waiting for message " << publishing_message << std::endl;
+    if (s_arguments["debug"] == "True") {
+        std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << publishing_message << std::endl;
+    }
     return false;
 }
 
@@ -217,8 +219,8 @@ bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
     *
     * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
     */
-    unsigned long long available_buffer = 100ull / percentage;
-    size_t middle_index = std::max(l_arguments["buffer"] / available_buffer, 1ull) + last_published;
+    const long long available_buffer = (l_arguments["buffer"] * percentage) / 100;
+    size_t middle_index = std::max(available_buffer, 1ll) + last_published;
     if (middle_index >= tokens.size()) {
         middle_index = tokens.size() - 1;
     }
@@ -424,9 +426,9 @@ void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, c
             send(payload_size, client, mqtt_ignore, tokens, last_published, debug && print_debug(next_print));
         }
     }
-    // Wait for all publish tokens to complete
+    // Wait for all published tokens to complete
     if (!tokens.empty() && !tokens.back()->wait_for(get_timeout(payload_size))) {
-        std::cout << get_timeout(payload_size) << " timeout waiting for message " << last_published << std::endl;
+        std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << last_published << std::endl;
     }
 }
 
@@ -575,7 +577,7 @@ long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, 
     ignore.replace(0, 1, "!");
     const char *message_ignore_ptr = ignore.c_str();
     const char *message_ptr = message.c_str();
-    const auto topic = s_arguments["topic"].c_str();
+    const char *topic = s_arguments["topic"].c_str();
     const bool debug = s_arguments["debug"] == "True";
     long long measured_messages = 0;
     std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
@@ -589,7 +591,7 @@ long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, 
         }
         measured_messages = sent - 1;
         std::chrono::time_point<std::chrono::steady_clock> deadline =
-                std::chrono::steady_clock::now() + std::chrono::seconds(get_timeout(payload_len));
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(get_timeout(payload_len));
         while (mosquitto_published < sent) {
             if (std::chrono::steady_clock::now() > deadline) {
                 if (debug) {
