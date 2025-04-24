@@ -29,16 +29,35 @@ parametrized by several key variables:
    ```
 
 - Install [eclipsie-paho](https://github.com/eclipse-paho/paho.mqtt.cpp)
-- ```shell
-   git clone https://github.com/eclipse/paho.mqtt.cpp
-   cd paho.mqtt.cpp
-   git checkout v1.4.0
-   git submodule init
-   git submodule update
-   cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
-   sudo cmake --build build/ --target install
-   cd ..
-   ```
+
+    - a) machine with Internet access
+      - ```shell
+         git clone https://github.com/eclipse/paho.mqtt.cpp
+         cd paho.mqtt.cpp
+         git checkout v1.4.0
+         git submodule init
+         git submodule update
+         cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
+         sudo cmake --build build/ --target install
+         cd ..
+         ```
+
+  - b) offline machine (CERN CMS intranet) + machine with internet 
+      - Clone repository with all submodules and transfer it to the offline machine 
+      - online machine 
+        ```shell
+         git clone https://github.com/eclipse/paho.mqtt.cpp
+         cd paho.mqtt.cpp
+         git checkout v1.4.0
+         git submodule init
+         git submodule update
+        ```
+      - offline machine
+         ```shell
+         cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
+         sudo cmake --build build/ --target install
+         cd ..
+         ```
 
 - Install & run Docker
 - ```shell
@@ -51,20 +70,39 @@ parametrized by several key variables:
 
 - Setup MQTT brokers with Docker Compose or manually
 
-a)
+I)
 
 ```shell
   sudo docker compose up --build --detach
 ```
 
-b)
+II)
 
-```shell
-  sudo docker build -t rabbitmq-benchmark:0.0.1 ./rabbitmq
-  sudo docker run --rm -it -d --name rabbitmq -p 1888:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
-  sudo docker build -t emqx:0.0.1 ./emqx
-  sudo docker run --rm -it -d --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx:0.0.1
-```
+- a) machine with Internet access
+
+    ```shell
+      sudo docker build -t rabbitmq-benchmark:0.0.1 ./rabbitmq
+      sudo docker run --rm -it -d --name rabbitmq -p 1888:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
+      sudo docker build -t emqx:0.0.1 ./emqx
+      sudo docker run --rm -it -d --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx:0.0.1
+    ```
+
+- b) offline machine (CERN CMS intranet) + machine with internet
+    - build and transfer docker image to the offline machine 
+    - online machine
+      ```shell
+        sudo docker build -t rabbitmq-benchmark:0.0.1 ./rabbitmq
+        sudo docker save -o rabbitmq.tar rabbitmq-benchmark:0.0.1
+        sudo docker build -t emqx:0.0.1 ./emqx
+        sudo docker save -o emqx.tar emqx:0.0.1
+      ```
+    - offline machine
+      ```shell
+        sudo docker load -i rabbitmq.tar
+        sudo docker load -i emqx.tar
+        sudo docker run --rm -it -d --name rabbitmq -p 1888:1888 -p 5672:5672 -p 15672:15672 rabbitmq-benchmark:0.0.1
+        sudo docker run --rm -it -d --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx:0.0.1
+      ```
 
 ## Compilation
 
