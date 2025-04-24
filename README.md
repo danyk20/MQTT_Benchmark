@@ -1,9 +1,14 @@
 # MQTT Benchmark
 
-Publish and consume messages and evaluate how long it takes for a given number of messages or how many messages can be
-sent within a given time frame. There are many parameters (flags) than can be adjusted for specific requirements.
+There is producer and consumer architecture where messages from producer go through the broker to the consumer.
 
 ![Publisher - Broker - Consumer](./diagrams/MQTT_Benchmark.svg)
+
+The purpose of this benchmark is to measure throughput (Bytes/s) from producer to consumer. Measurement can be
+parametrized by several key variables:
+- Quality of Service
+- Message size
+- Number of producers/consumers
 
 ## Prerequisites
 
