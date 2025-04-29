@@ -243,6 +243,7 @@ Once the consumer is running you can start the producers with:
 - `qos` - QoS list of more values separated by comma *1*
 - `username` - authentication on broker *<blank>*
 - `password` - authentication on broker *<blank>*
+- `report` - how often should consumer report number of received messages when debug is True in seconds *30*
 - `duration` - total measurement duration (disabled by default) *0*s
 - `ratio` - ratio of overall duration that will be measured (starting phase is complement before this phase nad it will
   not be measured) *80*%

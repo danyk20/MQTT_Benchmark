@@ -69,7 +69,11 @@ public:
                     "ratio of overall duration that will be measured (starting phase is complement, ignored) [0-100]%",
                     "80", ""
                 }
-            }
+            },
+            {
+                "report",
+                {"how often should consumer report number of received messages when debug is True in seconds", "30", ""}
+            },
         };
     }
 
@@ -285,7 +289,8 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
 }
 
 bool process_payload(int &received_messages, size_t &current_size,
-                     const mqtt::const_message_ptr &message_pointer) {
+                     const mqtt::const_message_ptr &message_pointer,
+                     std::chrono::time_point<std::chrono::steady_clock> &next_report) {
     /**
      * Read message size and update message counter. Empty message is considered as separator.
      *
@@ -293,12 +298,17 @@ bool process_payload(int &received_messages, size_t &current_size,
      * @current_size - how big is each of the messages
      * @separation - flag whether is it separation message (with no payload)
      * @message_pointer - pointer to the received message
+     * @next_report - earliest timestamp when next report about number of consumed messages will be printed
      *
      * returns True only if the message is empty
      */
     const std::string messageString = message_pointer->get_payload_str();
     if (config.get_string("debug") == "messages" || config.get_string("debug") == "MESSAGES") {
         std::cout << messageString << std::endl;
+    }
+    if (config.is_true("debug") && next_report <= std::chrono::steady_clock::now()) {
+        std::cout << "Consumed: " << std::to_string(received_messages) << " messages" << std::endl;
+        next_report = std::chrono::steady_clock::now() + std::chrono::milliseconds(config.get_value("report") * 1000);
     }
     if (messageString.empty() || messageString.at(0) == '!') {
         return true;
@@ -365,7 +375,8 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
 
 bool count_measurement(int &received_messages, std::vector<std::string> &measurements,
                        const mqtt::const_message_ptr &messagePointer,
-                       std::chrono::steady_clock::time_point &start_time, size_t &payload_size) {
+                       std::chrono::steady_clock::time_point &start_time, size_t &payload_size,
+                       std::chrono::time_point<std::chrono::steady_clock> &next_report) {
     /**
     * Process measurement restricted by time.
     *
@@ -374,11 +385,12 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
     * @message_pointer - pointer to the current received message
     * @start_time - first message timestap that trigger the mesurement
     * @payload_size - size of the first measured payload
+    * @next_report - earliest timestamp when next report about number of consumed messages will be printed
     *
     * returns True only if the measurement hasn't finished yet otherwise False
     */
     size_t current_size;
-    bool separation = process_payload(received_messages, current_size, messagePointer);
+    bool separation = process_payload(received_messages, current_size, messagePointer, next_report);
     if (received_messages == 1 && (!separation)) {
         start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
         payload_size = current_size;
@@ -404,6 +416,7 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
     std::chrono::time_point<std::chrono::steady_clock> measuring_phase;
     bool measuring = true;
     size_t payload_size;
+    std::chrono::time_point<std::chrono::steady_clock> next_report = std::chrono::steady_clock::now();
 
     while (measuring) {
         if (client->is_connected()) {
@@ -415,7 +428,7 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
                                                      measuring_phase);
                     } else {
                         measuring = count_measurement(received_messages, measurements, messagePointer, start_time,
-                                                      payload_size);
+                                                      payload_size, next_report);
                     }
                 } else {
                     client->disconnect();
