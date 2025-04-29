@@ -952,7 +952,7 @@ int main(int argc, char *argv[]) {
     if (!parse_arguments(argc, argv, config)) {
         return 1;
     }
-    if (config.get_string("fresh") == "True") {
+    if (config.is_true("fresh")) {
         clear_old_data(config.get_string("directory"));
     }
     const std::vector<std::string> messages = generate_messages(config.get_value("min"), config.get_value("max"));
