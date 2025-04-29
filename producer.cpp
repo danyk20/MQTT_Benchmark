@@ -1,6 +1,4 @@
-#include <iostream>
 #include <string>
-#include <cstdlib>
 #include <fstream>
 #include <mqtt/async_client.h>
 #include <vector>
@@ -12,37 +10,175 @@
 #include <cstdio>
 #include <unistd.h>
 
-std::map<std::string, std::string> s_arguments = {
-    {"debug", "False"}, // debug print
-    {"fresh", "False"}, // remove all previous measurements
-    {"separator", "True"}, // number of different message payloads sizes (except separator)
-    {"output", "producer_results.txt"},
-    {"topic", "test"}, // subscribed topic
-    {"client_id", ""},
-    {"library", "paho"}, //
-    {"version", "3.1.1"},
-    {"qos", "1"},
-    {"username", ""},
-    {"password", ""},
-    {"directory", "data/producer"},
+class Configuration {
+public:
+    Configuration() {
+        flags_ = {
+            {
+                "debug",
+                {"print debug messages, e.g. when buffer reach the limit", "False", ""}
+            },
+            {
+                "fresh",
+                {"delete all previous measurements from data folder", "False", ""}
+            },
+            {
+                "separator",
+                {"send separator after last message of each payload batch", "True", ""}
+            },
+            {
+                "output",
+                {"output file name", "producer_results.txt", ""}
+            },
+            {
+                "topic",
+                {"topic to which messages will be published", "test", ""}
+            },
+            {
+                "client_id",
+                {"unique client identification", "", ""}
+            },
+            {
+                "library",
+                {"which if the supported library to use [paho/mosquitto]", "paho", ""}
+            },
+            {
+                "version",
+                {"protocol version (currently supported only for paho)", "3.1.1", ""}
+            },
+            {
+                "qos",
+                {"Quality of Service, one or more values separated by comma", "1", ""}
+            },
+            {
+                "username",
+                {"authentication on broker", "", ""}
+            },
+            {
+                "password",
+                {"authentication on broker", "", ""}
+            },
+            {
+                "directory",
+                {"path to the directory where all measurements will be stored", "data/producer", ""}
+            },
+            {
+                "period", {"minimum delay between 2 consecutive messages", "80", ""}
+            },
+            {
+                "messages",
+                {"number of messages that will send per each payload size (exclusive with --duration flag)", "400", ""}
+            },
+            {
+                "buffer",
+                {"max number of messages that can stored in the buffer", "100", ""}
+            },
+            {
+                "repetitions",
+                {"number of times to run the all measurements all over again", "1", ""}
+            },
+            {
+                "timeout",
+                {"timeout for each KB of payload in ms", "5", ""}
+            },
+            {
+                "min_timeout",
+                {"minimum total timeout in ms", "1000", ""}
+            },
+            {
+                "min",
+                {"minimum payload size in KB", "72", ""}
+            },
+            {
+                "max",
+                {"maximum payload size in KB", "72", ""}
+            },
+            {
+                "percentage",
+                {"once buffer is full, wait until buffer is less than percentage [0-100]%", "50", ""}
+            },
+            {
+                "producers",
+                {"number of producers involved (used for storage structure)", "1", ""}
+            },
+            {
+                "duration",
+                {"number of seconds to send messages (exclusive with --messages flag)", "0", ""}
+            },
+            {
+                "middle",
+                {"beginning and end of the measurement will be cut off except middle part of [0-100]%", "50", ""}
+            },
+            {
+                "debug_period",
+                {"how often will be debug message about progress printed each in seconds", "5", ""}
+            },
+        };
+    }
+
+    void set_flag(const std::string &flag, const std::string &value) {
+        if (flags_.count(flag)) {
+            flags_[flag].user_input = value;
+        }
+    }
+
+    void set_preset(const std::string &flag, const std::string &value) {
+        if (flags_.count(flag)) {
+            flags_[flag].preset_value = value;
+        }
+    }
+
+    std::string get_string(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return flags_.at(flag).user_input.empty()
+                       ? flags_.at(flag).preset_value
+                       : flags_.at(flag).user_input;
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    std::string get_preset(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return flags_.at(flag).preset_value;
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    size_t get_value(const std::string &flag) const {
+        return std::stoul(get_string(flag));
+    }
+
+    std::string get_description(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return flags_.at(flag).description;
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    std::vector<std::string> all_flags() const {
+        std::vector<std::string> keys;
+        keys.reserve(flags_.size());
+        for (const auto &[key, _]: flags_) {
+            keys.push_back(key);
+        }
+        return keys;
+    }
+
+    bool is_supported(const std::string &flag) const {
+        return flags_.count(flag) > 0;
+    }
+
+private:
+    struct Flag {
+        std::string description;
+        std::string preset_value;
+        std::string user_input;
+    };
+
+    std::unordered_map<std::string, Flag> flags_;
 };
 
-std::map<std::string, long> l_arguments = {
-    {"period", 80}, // min delay between published messages
-    {"messages", 400},
-    {"buffer", 100}, // max number of messages in the buffer
-    {"repetitions", 1},
-    {"timeout", 5}, // wait timeout in ms per message per 1KB payload
-    {"min_timeout", 10000}, // minimal timeout in ms
-    {"qos", 1},
-    {"min", 72}, // minimum payload size in KB
-    {"max", 72}, // maximum payload size in KB
-    {"percentage", 50}, // % between 1 and 100 buffer window size
-    {"producers", 1},
-    {"duration", 60}, // in seconds
-    {"middle", 50}, // % between 1 and 100 duration of measurement
-    {"debug_period", 5},
-};
+Configuration config;
 
 static bool is_reconnecting = false;
 static long long mosquitto_published = 0;
@@ -63,7 +199,7 @@ static void disconnected_handler(const std::string &cause) {
     is_reconnecting = true;
 }
 
-std::vector<int> parse_qos(const std::string &input) {
+std::vector<std::string> parse_qos(const std::string &input) {
     /**
      * @ input string input from the user
      *
@@ -71,12 +207,12 @@ std::vector<int> parse_qos(const std::string &input) {
      *
      * Returns list of QoS as int values
      */
-    std::vector<int> numbers;
+    std::vector<std::string> numbers;
     std::stringstream ss(input);
     std::string temp;
 
     while (std::getline(ss, temp, ',')) {
-        numbers.push_back(std::stoi(temp));
+        numbers.push_back(temp);
     }
 
     return numbers;
@@ -87,11 +223,11 @@ long get_timeout(const size_t payload) {
      * @ payload size in B
      * Returns timeout in miliseconds which is 1s or more based on Buffer size and payload size
      */
-    const long timeout = l_arguments["timeout"] * l_arguments["buffer"] * static_cast<long>(payload / 1024);
-    if (timeout < l_arguments["min_timeout"]) {
-        return l_arguments["min_timeout"];
+    const size_t timeout = config.get_value("timeout") * config.get_value("buffer") * static_cast<long>(payload / 1024);
+    if (timeout < config.get_value("min_timeout")) {
+        return static_cast<long>(config.get_value("min_timeout"));
     }
-    return timeout;
+    return static_cast<long>(timeout);
 }
 
 void publish_separator(mqtt::async_client &client, const bool disconnect = false) {
@@ -101,7 +237,7 @@ void publish_separator(mqtt::async_client &client, const bool disconnect = false
      * @client - connection object
      */
     const std::string empty_message;
-    const auto msg = mqtt::make_message(s_arguments["topic"], empty_message);
+    const auto msg = mqtt::make_message(config.get_string("topic"), empty_message);
     msg->set_qos(1);
     if (!client.publish(msg)->wait_for(get_timeout(0))) {
         std::cerr << "publishing of separator failed" << std::endl;
@@ -122,7 +258,7 @@ void publish_separator(mosquitto &mosq, const bool disconnect = false) {
      */
     const std::string empty_message;
     constexpr int qos = 1;
-    const char *topic = s_arguments["topic"].c_str();
+    const char *topic = config.get_string("topic").c_str();
 
     if (const int return_code = mosquitto_publish(&mosq, nullptr, topic, 0, &empty_message, qos, false);
         return_code != MOSQ_ERR_SUCCESS) {
@@ -154,15 +290,15 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
     const std::string measurement = "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + ","
                                     + std::to_string(static_cast<int>(throughput)) + "," +
                                     std::to_string(static_cast<int>(message_per_seconds)) + "]";
-    if (s_arguments["debug"] == "True") {
+    if (config.get_string("debug") == "True") {
         std::cout << measurement << " - " << duration.count() << "s" << std::endl;
     }
 
 
-    if (s_arguments["debug"] == "True") {
+    if (config.get_string("debug") == "True") {
         std::cout << "Sent " << number_of_messages << " messages of size " << payload_size << " using QoS " <<
-                s_arguments["qos"] << " bytes to topic '" << s_arguments["topic"] << "' in " << duration.count() << " s"
-                << std::endl;
+                config.get_preset("qos") << " bytes to topic '" << config.get_string("topic") << "' in " << duration.
+                count() << " s" << std::endl;
     }
 
     return "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + "," +
@@ -181,7 +317,7 @@ size_t delivered_messages(const std::vector<std::shared_ptr<mqtt::token> > &toke
     return index;
 }
 
-bool wait_for_buffer_dump(const long long sent, const long long percentage, const size_t payload_size) {
+bool wait_for_buffer_dump(const size_t sent, const size_t percentage, const size_t payload_size) {
     /**
     * @ sent - number of messaged that have been sent regadless of their acknowledgment
     * @ percentage - size of the full baffer that is reaquired to become free
@@ -190,7 +326,7 @@ bool wait_for_buffer_dump(const long long sent, const long long percentage, cons
     *
     * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
     */
-    const long long max_occupied_buffer = ((100 - percentage) * l_arguments["buffer"]) / 100;
+    const size_t max_occupied_buffer = ((100 - percentage) * config.get_value("buffer")) / 100;
 
     const std::chrono::time_point<std::chrono::steady_clock> deadline =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(get_timeout(payload_size));
@@ -202,14 +338,14 @@ bool wait_for_buffer_dump(const long long sent, const long long percentage, cons
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     const long long publishing_message = (mosquitto_published + 1);
-    if (s_arguments["debug"] == "True") {
+    if (config.get_string("debug") == "True") {
         std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << publishing_message << std::endl;
     }
     return false;
 }
 
 bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
-                          long long percentage, size_t payload_size) {
+                          size_t percentage, size_t payload_size) {
     /**
     * @ tokens - list of all tokens for messages that have been already sent asynchronously
     * @ last_published - index of the last confirmed token (message has been sent) from the tokens list
@@ -219,8 +355,8 @@ bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &toke
     *
     * Waits until there is required percentage of buffer free or there is timeout - whichever comes first
     */
-    const long long available_buffer = (l_arguments["buffer"] * percentage) / 100;
-    size_t middle_index = std::max(available_buffer, 1ll) + last_published;
+    const size_t available_buffer = (config.get_value("buffer") * percentage) / 100;
+    size_t middle_index = std::max(available_buffer, 1ul) + last_published;
     if (middle_index >= tokens.size()) {
         middle_index = tokens.size() - 1;
     }
@@ -276,11 +412,11 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
     *
     * Returns time_point when given phase should finish.
     */
-    long phase_duration = 0;
+    size_t phase_duration = 0;
     if (phase == 1) {
-        phase_duration = l_arguments["duration"] * l_arguments["middle"] / 100;
+        phase_duration = config.get_value("duration") * config.get_value("middle") / 100;
     } else {
-        phase_duration = l_arguments["duration"] * (100 - l_arguments["middle"]) / 200;
+        phase_duration = config.get_value("duration") * (100 - config.get_value("middle")) / 200;
     }
     const std::chrono::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(phase_duration);
     return deadline;
@@ -301,22 +437,23 @@ void send(size_t payload_size, mosquitto &mosq, const char *msg, const char *top
     while (is_reconnecting) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    if (sent - mosquitto_published >= l_arguments["buffer"]) {
+    if (sent - mosquitto_published >= config.get_value("buffer")) {
         // message buffer is full
         while (true) {
-            if (!wait_for_buffer_dump(sent, l_arguments["percentage"], payload_size)) {
+            if (!wait_for_buffer_dump(sent, config.get_value("percentage"), payload_size)) {
                 std::cerr << "Buffer couldn't be freed!";
             }
             break;
         }
     }
-    if (const int return_code = mosquitto_publish(&mosq, nullptr, topic, payload_size, msg, qos, false);
+    if (const int return_code = mosquitto_publish(&mosq, nullptr, topic, static_cast<int>(payload_size), msg, qos,
+                                                  false);
         return_code != MOSQ_ERR_SUCCESS) {
         fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(return_code));
     } else {
         sent++;
     }
-    const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
+    const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(config.get_value("period"));
     if (debug) {
         std::cout << sent << " - published and " << sent - mosquitto_published << " in buffer" << std::endl;
     }
@@ -335,20 +472,20 @@ void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_p
     *
     * Sends single message
     */
-    if (tokens.size() - last_published >= l_arguments["buffer"]) {
+    if (tokens.size() - last_published >= config.get_value("buffer")) {
         // message buffer is full
         while (true) {
-            if (!wait_for_buffer_dump(tokens, last_published, l_arguments["percentage"], payload_size)) {
+            if (!wait_for_buffer_dump(tokens, last_published, config.get_value("percentage"), payload_size)) {
                 if (client.is_connected()) {
                     throw std::runtime_error("Buffer reached limit!");
                 }
                 std::cerr << "Buffer couldn't be freed because the client is disconnected!";
-                // TO DO remove too often print
+                // TO DO remove too frequent print
             }
             break;
         }
     }
-    const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(l_arguments["period"]);
+    const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(config.get_value("period"));
     while (is_reconnecting) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
@@ -371,7 +508,7 @@ bool print_debug(std::chrono::time_point<std::chrono::steady_clock> &next_print)
     */
 
     if (const std::chrono::time_point current_time = std::chrono::steady_clock::now(); current_time >= next_print) {
-        next_print = current_time + std::chrono::seconds(l_arguments["debug_period"]);
+        next_print = current_time + std::chrono::seconds(config.get_value("debug_period"));
         return true;
     }
     return false;
@@ -390,12 +527,12 @@ void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, c
     * Sends multiple messages - restricted via time or number of messages
     */
     size_t last_published = 0;
-    const bool debug = s_arguments["debug"] == "True";
+    const bool debug = config.get_string("debug") == "True";
     std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
 
-    if (l_arguments["duration"] == 0) {
+    if (config.get_value("duration") == 0) {
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
-        for (auto i = 0; i < l_arguments["messages"]; ++i) {
+        for (auto i = 0; i < config.get_value("messages"); ++i) {
             send(payload_size, client, mqtt_message, tokens, last_published, debug && print_debug(next_print));
         }
     } else {
@@ -447,13 +584,14 @@ std::string publish_paho(const std::string &message, int qos) {
 
     std::vector<std::shared_ptr<mqtt::token> > tokens;
     constexpr long expected_throughput = 1000000000l; // max 1 GB
-    const long expected_messages = l_arguments["duration"] * (
-                                       expected_throughput / static_cast<long>(message.size()));
-    tokens.reserve(std::max(expected_messages, l_arguments["messages"])); // to track async messages
+    const size_t expected_messages = config.get_value("duration") * (
+                                         expected_throughput / static_cast<long>(message.size()));
+    tokens.reserve(std::max(expected_messages, config.get_value("messages"))); // to track async messages
 
     try {
-        auto client = mqtt::async_client(brokerAddress + ":" + std::to_string(brokerPort), s_arguments["client_id"],
-                                         static_cast<int>(l_arguments["buffer"]));
+        auto client = mqtt::async_client(brokerAddress + ":" + std::to_string(brokerPort),
+                                         config.get_string("client_id"),
+                                         static_cast<int>(config.get_value("buffer")));
 
         client.set_connection_lost_handler(disconnected_handler);
         client.set_connected_handler(connected_handler);
@@ -461,13 +599,13 @@ std::string publish_paho(const std::string &message, int qos) {
         auto connOpts = mqtt::connect_options_builder()
                 .clean_session()
                 .automatic_reconnect(true)
-                .mqtt_version(get_mqtt_version(s_arguments["version"]))
+                .mqtt_version(get_mqtt_version(config.get_string("version")))
                 .finalize();
-        if (!s_arguments["username"].empty()) {
-            connOpts.set_user_name(s_arguments["username"]);
+        if (!config.get_string("username").empty()) {
+            connOpts.set_user_name(config.get_string("username"));
         }
-        if (!s_arguments["password"].empty()) {
-            connOpts.set_password(s_arguments["password"]);
+        if (!config.get_string("password").empty()) {
+            connOpts.set_password(config.get_string("password"));
         }
 
         if (!client.connect(connOpts)->wait_for(get_timeout(0))) {
@@ -476,10 +614,10 @@ std::string publish_paho(const std::string &message, int qos) {
         }
 
         // Pre-create the message to minimize allocation overhead
-        auto mqtt_message = mqtt::make_message(s_arguments["topic"], message, qos, false);
+        auto mqtt_message = mqtt::make_message(config.get_string("topic"), message, qos, false);
         std::string ignore = message;
         ignore.replace(0, 1, "!");
-        mqtt::message_ptr mqtt_ignore = mqtt::make_message(s_arguments["topic"], ignore, qos, false);
+        mqtt::message_ptr mqtt_ignore = mqtt::make_message(config.get_string("topic"), ignore, qos, false);
 
         // first non measured message
         publish_separator(client);
@@ -530,15 +668,15 @@ mosquitto *get_mosquitto() {
      * Initilize Mosquitto client
      */
     mosquitto_lib_init();
-    const char *client_id = s_arguments["client_id"].empty() ? nullptr : s_arguments["client_id"].c_str();
+    const char *client_id = config.get_string("client_id").empty() ? nullptr : config.get_string("client_id").c_str();
     mosquitto *mosq = mosquitto_new(client_id, true, nullptr);
     if (mosq == nullptr) {
         fprintf(stderr, "Error: Out of memory.\n");
         throw std::runtime_error("Fail to create client");
     }
 
-    const char *username = s_arguments["username"].empty() ? nullptr : s_arguments["username"].c_str();
-    const char *password = s_arguments["password"].empty() ? nullptr : s_arguments["password"].c_str();
+    const char *username = config.get_string("username").empty() ? nullptr : config.get_string("username").c_str();
+    const char *password = config.get_string("password").empty() ? nullptr : config.get_string("password").c_str();
 
     mosquitto_username_pw_set(mosq, username, password);
 
@@ -577,16 +715,16 @@ long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, 
     ignore.replace(0, 1, "!");
     const char *message_ignore_ptr = ignore.c_str();
     const char *message_ptr = message.c_str();
-    const char *topic = s_arguments["topic"].c_str();
-    const bool debug = s_arguments["debug"] == "True";
+    const char *topic = config.get_string("topic").c_str();
+    const bool debug = config.get_string("debug") == "True";
     long long measured_messages = 0;
     std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
 
     long long sent = 0;
-    if (l_arguments["duration"] == 0) {
+    if (config.get_value("duration") == 0) {
         sent++; // initial separator
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
-        for (long long i = 0; i < l_arguments["messages"]; ++i) {
+        for (long long i = 0; i < config.get_value("messages"); ++i) {
             send(payload_len, mosq, message_ptr, topic, qos, sent, debug && print_debug(next_print));
         }
         measured_messages = sent - 1;
@@ -683,7 +821,7 @@ std::string publish(const std::string &library, const std::string &message, int 
 }
 
 
-std::vector<std::string> generate_messages(long min_size_in_kb, long max_size_in_kb) {
+std::vector<std::string> generate_messages(size_t min_size_in_kb, size_t max_size_in_kb) {
     /**
      * Generate message of specific length from min_size_in_kb to max_size_in_kb. Each new message is twice as big as
      * previos.
@@ -708,8 +846,8 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::string path = s_arguments["directory"] + "/" + std::to_string(l_arguments["qos"]) + "/" + std::to_string(
-                           l_arguments["producers"]) + "/" + s_arguments["output"];
+    std::string path = config.get_string("directory") + "/" + config.get_preset("qos") + "/" + std::to_string(
+                           config.get_value("producers")) + "/" + config.get_string("output");
     create_directories(std::filesystem::path(path).parent_path());
     std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {
@@ -744,80 +882,10 @@ void print_flags() {
      * Print possible arguments and their usecases
      */
     std::cout << "Supported arguments flags:" << std::endl;
-    for (const auto &argument: s_arguments) {
-        std::cout << "  --" << argument.first << ((argument.first == "debug") ? "" : " <value>") << std::endl;
+    for (const auto &argument: config.all_flags()) {
+        printf("--%-15s %-90s : <%s>\n", argument.c_str(), config.get_description(argument).c_str(),
+               config.get_preset(argument).c_str());
     }
-    for (const auto &argument: l_arguments) {
-        std::cout << "  --" << argument.first << " <value>" << std::endl;
-    }
-}
-
-bool set_parameters(int argc, char *argv[]) {
-    /**
-     * Set all parameter from command line arguments and return True unlless bad argument or 'help' was provided
-     */
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
-            s_arguments["output_file"] = argv[++i];
-        } else if ((arg == "-t" || arg == "--topic") && i + 1 < argc) {
-            s_arguments["topic"] = argv[++i];
-        } else if ((arg == "-u" || arg == "--username") && i + 1 < argc) {
-            s_arguments["username"] = argv[++i];
-        } else if ((arg == "-p" || arg == "--password") && i + 1 < argc) {
-            s_arguments["password"] = argv[++i];
-        } else if ((arg == "-c" || arg == "--client_id") && i + 1 < argc) {
-            s_arguments["client_id"] = argv[++i];
-        } else if (arg == "--debug" || arg == "-d") {
-            s_arguments["debug"] = "True";
-        } else if (arg == "--fresh" || arg == "-f") {
-            s_arguments["fresh"] = "True";
-        } else if ((arg == "-s" || arg == "--separator") && i + 1 < argc) {
-            s_arguments["separator"] = argv[++i];
-        } else if (arg == "--library" && i + 1 < argc) {
-            s_arguments["library"] = argv[++i];
-        } else if (arg == "--directory" && i + 1 < argc) {
-            s_arguments["directory"] = argv[++i];
-        } else if (arg == "--version" && i + 1 < argc) {
-            s_arguments["version"] = argv[++i];
-        } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
-            s_arguments["qos"] = argv[++i];
-        } else if ((arg == "--debug_period") && i + 1 < argc) {
-            l_arguments["debug_period"] = std::stol(argv[++i]);
-        } else if ((arg == "--period") && i + 1 < argc) {
-            l_arguments["period"] = std::stol(argv[++i]);
-        } else if ((arg == "-b" || arg == "--buffer") && i + 1 < argc) {
-            l_arguments["buffer"] = std::stol(argv[++i]);
-        } else if ((arg == "-r" || arg == "--repetitions") && i + 1 < argc) {
-            l_arguments["repetitions"] = std::stol(argv[++i]);
-        } else if ((arg == "--timeout") && i + 1 < argc) {
-            l_arguments["timeout"] = std::stol(argv[++i]);
-        } else if ((arg == "--min") && i + 1 < argc) {
-            l_arguments["min"] = std::stol(argv[++i]);
-        } else if ((arg == "--max") && i + 1 < argc) {
-            l_arguments["max"] = std::stol(argv[++i]);
-        } else if ((arg == "--percentage") && i + 1 < argc) {
-            l_arguments["percentage"] = std::stol(argv[++i]);
-        } else if ((arg == "--producers") && i + 1 < argc) {
-            l_arguments["producers"] = std::stol(argv[++i]);
-        } else if ((arg == "--middle") && i + 1 < argc) {
-            l_arguments["middle"] = std::stol(argv[++i]);
-        } else if ((arg == "-m" || arg == "--messages") && i + 1 < argc) {
-            l_arguments["messages"] = std::stol(argv[++i]);
-            l_arguments["duration"] = 0;
-        } else if ((arg == "--duration") && i + 1 < argc) {
-            l_arguments["duration"] = std::stol(argv[++i]);
-            l_arguments["messages"] = 0;
-        } else if (arg == "--help" || arg == "-h") {
-            print_flags();
-            return false;
-        } else {
-            std::cerr << "Unknown argument: " << arg << std::endl;
-            print_flags();
-            return false;
-        }
-    }
-    return true;
 }
 
 void clear_old_data(const std::string &path) {
@@ -832,7 +900,7 @@ void clear_old_data(const std::string &path) {
             for (const auto &entry: std::filesystem::directory_iterator(dirPath)) {
                 remove_all(entry.path());
             }
-            if (s_arguments["debug"] == "True") {
+            if (config.get_string("debug") == "True") {
                 std::cout << "Old measurements cleared successfully." << std::endl;
             }
         } else {
@@ -843,22 +911,46 @@ void clear_old_data(const std::string &path) {
     }
 }
 
+bool parse_arguments(int argc, char *argv[], Configuration &config) {
+    for (int i = 1; i < argc; ++i) {
+        std::string flag = argv[i];
+        flag = flag.substr(2); // remove leading "--"
+
+        if (argv[i] == "--help" || argv[i] == "-h") {
+            print_flags();
+            return false;
+        } else if (config.is_supported(flag)) {
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                config.set_flag(flag, argv[++i]);
+            } else {
+                std::cerr << "Warning: Missing value for flag " << flag
+                        << ". Using default.\n";
+            }
+        } else {
+            std::cerr << "Warning: Unknown flag '" << flag << "' ignored.\n";
+            print_flags();
+            return false;
+        }
+    }
+    return true;
+}
+
 int main(int argc, char *argv[]) {
-    if (!set_parameters(argc, argv)) {
+    if (!parse_arguments(argc, argv, config)) {
         return 1;
     }
-    if (s_arguments["fresh"] == "True") {
-        clear_old_data(s_arguments["directory"]);
+    if (config.get_string("fresh") == "True") {
+        clear_old_data(config.get_string("directory"));
     }
-    const std::vector<std::string> messages = generate_messages(l_arguments["min"], l_arguments["max"]);
+    const std::vector<std::string> messages = generate_messages(config.get_value("min"), config.get_value("max"));
     std::vector<std::string> measurements;
     measurements.reserve(messages.size());
-    for (const auto &qos: parse_qos(s_arguments["qos"])) {
-        l_arguments["qos"] = qos;
-        for (int i = 0; i < l_arguments["repetitions"]; ++i) {
+    for (const auto &qos: parse_qos(config.get_string("qos"))) {
+        config.set_preset("qos", qos);
+        for (int i = 0; i < config.get_value("repetitions"); ++i) {
             for (const auto &message: messages) {
-                measurements.emplace_back(publish(s_arguments["library"], message,
-                                                  static_cast<int>(l_arguments["qos"])));
+                measurements.emplace_back(publish(config.get_string("library"), message,
+                                                  std::stoi(config.get_preset("qos"))));
             }
             store_string(format_output(measurements));
         }
