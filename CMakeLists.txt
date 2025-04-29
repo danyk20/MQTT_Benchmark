@@ -1,5 +1,19 @@
-cmake_minimum_required(VERSION 3.00)
+cmake_minimum_required(VERSION 3.20)
 project(MQTT_Benchmark VERSION 1.0)
+
+## Find the compiler version
+#if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+#    message(STATUS "Detected Clang compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
+#
+#    # Parse the major version (before the first dot)
+#    string(REGEX MATCH "^[0-9]+" CLANG_VERSION_MAJOR "${CMAKE_CXX_COMPILER_VERSION}")
+#    message(STATUS "Detected Clang major version: ${CLANG_VERSION_MAJOR}")
+#
+#    if(NOT CLANG_VERSION_MAJOR EQUAL 18)
+#        message(FATAL_ERROR "Clang incorrect version (${CLANG_VERSION_MAJOR}), please use only Clang 18!")
+#    endif()
+#endif()
+
 
 if(NOT DEFINED ENV{PAHO_INC_PATH})
     message(FATAL_ERROR "Environment variable PAHO_INC_PATH is not set!")
