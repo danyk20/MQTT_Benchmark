@@ -257,8 +257,14 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     /**
      * Create connection to the broker and subsribe to the topic based on global constants and enviromental variables
      */
-    const std::string brokerAddress = std::getenv("BROKER_IP");
-    const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
+    const std::string brokerAddress = std::getenv("BROKER_IP")
+                                          ? std::getenv("BROKER_IP")
+                                          : throw std::runtime_error(
+                                              "Broker IP not provided as environment variable BROKER_IP!");
+    const int brokerPort = std::getenv("MQTT_PORT")
+                               ? std::stoi(std::getenv("MQTT_PORT"))
+                               : throw std::runtime_error(
+                                   "Broker port not provided as environment variable MQTT_PORT!");
     std::string broker = brokerAddress + ":" + std::to_string(brokerPort);
 
     auto client = std::make_unique<mqtt::client>(broker, config.get_string("client_id"),

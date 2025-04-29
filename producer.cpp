@@ -593,8 +593,14 @@ std::string publish_paho(const std::string &message, int qos) {
      * Returns measurement as string of following format:
      * [number_of_messages,single-message_size,B/s,number_of_message/s]
      */
-    const std::string brokerAddress = std::getenv("BROKER_IP");
-    const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
+    const std::string brokerAddress = std::getenv("BROKER_IP")
+                                          ? std::getenv("BROKER_IP")
+                                          : throw std::runtime_error(
+                                              "Broker IP not provided as environment variable BROKER_IP!");
+    const int brokerPort = std::getenv("MQTT_PORT")
+                               ? std::stoi(std::getenv("MQTT_PORT"))
+                               : throw std::runtime_error(
+                                   "Broker port not provided as environment variable MQTT_PORT!");
 
     std::vector<std::shared_ptr<mqtt::token> > tokens;
     constexpr long expected_throughput = 1000000000l; // max 1 GB
