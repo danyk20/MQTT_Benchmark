@@ -176,7 +176,7 @@ Once the consumer is running you can start the producers with:
 
 ### Producer Flags
 
-- `debug` - print debug print when buffer reach the limit: *False*
+- `debug` - print debug print when buffer reaches the limit: *False*
 - `fresh` - delete all previous measurements: *False*
 - `directory` - path to the directory where all measurements will be stored: *data/producer*
 - `library` - which library to use *PAHO*
@@ -231,7 +231,7 @@ Once the consumer is running you can start the producers with:
 
 ### Consumer Flags
 
-- `debug` - print debug print after each separator: *False*
+- `debug` - print debug print after each separator if True, or print each message if "messages": *False*
 - `fresh` - delete all previous measurements: *False*
 - `directory` - path to the directory where all measurements will be stored: *data/consumer*
 - `separators` - number of separators to consume: *1*

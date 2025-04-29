@@ -3,26 +3,157 @@
 #include <ostream>
 #include <filesystem>
 
-std::map<std::string, std::string> arguments = {
-    {"debug", "False"}, // debug print
-    {"fresh", "False"},
-    {"separators", "1"}, // number of different message payloads sizes (except separator)
-    {"output_file", "consumer_results.txt"},
-    {"topic", "test"},
-    {"directory", "data/consumer"},
-    {"client_id", ""},
-    {"consumers", "1"},
-    {"qos", "1"},
-    {"qos_input", "1"},
-    {"version", "3.1.1"},
-    {"username", ""},
-    {"password", ""},
-    {"duration", "0"},
-    {"ratio", "80"},
+class Configuration {
+public:
+    Configuration() {
+        flags_ = {
+            {
+                "debug",
+                {"print debug messages, e.g. separator arrived", "False", ""}
+            },
+            {
+                "fresh",
+                {"delete all previous measurements from data folder", "False", ""}
+            },
+            {
+                "output",
+                {"output file name", "consumer_results.txt", ""}
+            },
+            {
+                "topic",
+                {"topic from which messages will be subscribed", "test", ""}
+            },
+            {
+                "client_id",
+                {"unique client identification", "", ""}
+            },
+            {
+                "library",
+                {"which if the supported library to use [paho]", "paho", ""}
+            },
+            {
+                "version",
+                {"protocol version (currently supported only for paho)", "3.1.1", ""}
+            },
+            {
+                "qos",
+                {"Quality of Service, one or more values separated by comma", "1", ""}
+            },
+            {
+                "username",
+                {"authentication on broker", "", ""}
+            },
+            {
+                "password",
+                {"authentication on broker", "", ""}
+            },
+            {
+                "directory",
+                {"path to the directory where all measurements will be stored", "data/producer", ""}
+            },
+            {
+                "consumers",
+                {"number of consumers involved (used for storage structure)", "1", ""}
+            },
+            {
+                "separators",
+                {"number of separators to consume", "1", ""}
+            },
+            {
+                "duration",
+                {"number of seconds to send messages (exclusive with --messages flag)", "0", ""}
+            },
+            {
+                "ratio",
+                {
+                    "ratio of overall duration that will be measured (starting phase is complement, ignored) [0-100]%",
+                    "80", ""
+                }
+            }
+        };
+    }
+
+    void set_flag(const std::string &flag, const std::string &value) {
+        if (flags_.count(flag)) {
+            flags_[flag].user_input = value;
+        }
+    }
+
+    void set_preset(const std::string &flag, const std::string &value) {
+        if (flags_.count(flag)) {
+            flags_[flag].preset_value = value;
+        }
+    }
+
+    std::string get_string(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return flags_.at(flag).user_input.empty()
+                       ? flags_.at(flag).preset_value
+                       : flags_.at(flag).user_input;
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    std::string get_preset(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return flags_.at(flag).preset_value;
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    size_t get_value(const std::string &flag) const {
+        return std::stoul(get_string(flag));
+    }
+
+    std::string get_description(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return flags_.at(flag).description;
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    bool is_true(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return get_string(flag) == "True";
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    bool is_empty(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return get_string(flag).empty();
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    std::vector<std::string> all_flags() const {
+        std::vector<std::string> keys;
+        keys.reserve(flags_.size());
+        for (const auto &[key, _]: flags_) {
+            keys.push_back(key);
+        }
+        return keys;
+    }
+
+    bool is_supported(const std::string &flag) const {
+        return flags_.count(flag) > 0;
+    }
+
+private:
+    struct Flag {
+        std::string description;
+        std::string preset_value;
+        std::string user_input;
+    };
+
+    std::unordered_map<std::string, Flag> flags_;
 };
 
+Configuration config;
+
 std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
-    int phase, std::chrono::time_point<std::chrono::steady_clock> start_time = std::chrono::steady_clock::now()) {
+    const int phase,
+    const std::chrono::time_point<std::chrono::steady_clock> start_time = std::chrono::steady_clock::now()) {
     /**
     * @ phase - number (0 - starting, 1- measutring)
     * @ start_time - to which time should be added the phase duration
@@ -33,9 +164,9 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
     */
     long phase_duration = 0;
     if (phase == 1) {
-        phase_duration = std::stoi(arguments["duration"]) * std::stoi(arguments["ratio"]) / 100;
+        phase_duration = config.get_value("duration") * config.get_value("ratio") / 100;
     } else {
-        phase_duration = std::stoi(arguments["duration"]) * (100 - std::stoi(arguments["ratio"])) / 100;
+        phase_duration = config.get_value("duration") * (100 - config.get_value("ratio")) / 100;
     }
     std::chrono::time_point deadline = start_time + std::chrono::seconds(phase_duration);
     return deadline;
@@ -47,8 +178,8 @@ void store_string(const std::string &data) {
      *
      * @data - string to store
      */
-    std::string path = arguments["directory"] + "/" + arguments["qos"] + "/" + arguments["consumers"] + "/" + arguments[
-                           "output_file"];
+    const std::string path = config.get_string("directory") + "/" + config.get_string("qos") + "/" + config.
+                             get_string("consumers") + "/" + config.get_string("output");
     create_directories(std::filesystem::path(path).parent_path());
     std::ofstream outfile(path, std::ios_base::app);
     if (outfile.is_open()) {
@@ -79,14 +210,14 @@ std::string format_output(const std::vector<std::string> &strings) {
     return result;
 }
 
-void add_measurement(std::chrono::steady_clock::time_point start_time, int received_messages, size_t current_size,
-                     std::vector<std::string> *measurements) {
+void add_measurement(const std::chrono::steady_clock::time_point start_time, const int received_messages,
+                     const size_t current_size, std::vector<std::string> *measurements) {
     /*
-     * Add measurement as string into given vector of measurements. Format of single measurement is following :
+     * Add measurement as string into given vector of measurements. Format of single measurement is following:
      * [number_of_messages,size_of_the_message,B/s,number_of_messages/s]
      *
      * @start_time - when was the first message received
-     * @received_messages - how many message have been received
+     * @received_messages - how many messages have been received
      * @current_size - how big is each of the messages
      * @measurements - vector of previous measurements
      */
@@ -97,7 +228,7 @@ void add_measurement(std::chrono::steady_clock::time_point start_time, int recei
     const std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) + ","
                                     + std::to_string(static_cast<int>(throughput)) + "," +
                                     std::to_string(static_cast<int>(message_per_seconds)) + "]";
-    if (arguments["debug"] == "True") {
+    if (config.is_true("debug")) {
         std::cout << measurement << " - " << duration.count() << "s" << std::endl;
     }
     measurements->push_back(measurement);
@@ -126,21 +257,21 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     const int brokerPort = std::stoi(std::getenv("MQTT_PORT"));
     std::string broker = brokerAddress + ":" + std::to_string(brokerPort);
 
-    auto client = std::make_unique<mqtt::client>(broker, arguments["client_id"],
-                                                 mqtt::create_options(get_mqtt_version(arguments["version"])));
+    auto client = std::make_unique<mqtt::client>(broker, config.get_string("client_id"),
+                                                 mqtt::create_options(get_mqtt_version(config.get_string("version"))));
     auto connOpts = mqtt::connect_options_builder()
             .clean_session()
-            .mqtt_version(get_mqtt_version(arguments["version"]))
+            .mqtt_version(get_mqtt_version(config.get_string("version")))
             .finalize();
-    if (!arguments["username"].empty()) {
-        connOpts.set_user_name(arguments["username"]);
+    if (!config.is_empty("username")) {
+        connOpts.set_user_name(config.get_string("username"));
     }
-    if (!arguments["password"].empty()) {
-        connOpts.set_password(arguments["password"]);
+    if (!config.is_empty("password")) {
+        connOpts.set_password(config.get_string("password"));
     }
     try {
         client->connect(connOpts);
-        client->subscribe(arguments["topic"], std::stoi(arguments["qos"]));
+        client->subscribe(config.get_string("topic"), std::stoi(config.get_preset("qos")));
         client->start_consuming();
     } catch (mqtt::exception &e) {
         if (e.get_return_code() == -1) {
@@ -166,7 +297,9 @@ bool process_payload(int &received_messages, size_t &current_size,
      * returns True only if the message is empty
      */
     const std::string messageString = message_pointer->get_payload_str();
-    // std::cout << messageString << std::endl;
+    if (config.get_string("debug") == "messages" || config.get_string("debug") == "MESSAGES") {
+        std::cout << messageString << std::endl;
+    }
     if (messageString.empty() || messageString.at(0) == '!') {
         return true;
     }
@@ -180,59 +313,10 @@ void print_flags() {
      * Print possible arguments and their usecases
      */
     std::cout << "Supported arguments flags:" << std::endl;
-    for (const auto &argument: arguments) {
-        if (argument.first == "debug") {
-            std::cout << "  --" << argument.first << std::endl;
-        } else {
-            std::cout << "  --" << argument.first << " <value>" << std::endl;
-        }
+    for (const auto &argument: config.all_flags()) {
+        printf("--%-15s %-100s : <%s>\n", argument.c_str(), config.get_description(argument).c_str(),
+               config.get_preset(argument).c_str());
     }
-}
-
-bool set_parameters(int argc, char *argv[]) {
-    /**
-     * Set all parameter from command line arguments and return True unlless bad argument or 'help' was provided
-     */
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if ((arg == "-s" || arg == "--separators") && i + 1 < argc) {
-            arguments["separators"] = argv[++i];
-        } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
-            arguments["output_file"] = argv[++i];
-        } else if ((arg == "-t" || arg == "--topic") && i + 1 < argc) {
-            arguments["topic"] = argv[++i];
-        } else if ((arg == "-c" || arg == "--client_id") && i + 1 < argc) {
-            arguments["client_id"] = argv[++i];
-        } else if ((arg == "--consumers") && i + 1 < argc) {
-            arguments["consumers"] = argv[++i];
-        } else if ((arg == "-q" || arg == "--qos") && i + 1 < argc) {
-            arguments["qos_input"] = argv[++i];
-        } else if (arg == "--duration") {
-            arguments["duration"] = argv[++i];
-        } else if (arg == "--ratio") {
-            arguments["ratio"] = argv[++i];
-        } else if (arg == "--debug" || arg == "-d") {
-            arguments["debug"] = "True";
-        } else if (arg == "--username" || arg == "-u") {
-            arguments["username"] = argv[++i];
-        } else if (arg == "--password" || arg == "-p") {
-            arguments["password"] = argv[++i];
-        } else if (arg == "--fresh" || arg == "-f") {
-            arguments["fresh"] = "True";
-        } else if (arg == "--directory") {
-            arguments["directory"] = argv[++i];
-        } else if ((arg == "--version") && i + 1 < argc) {
-            arguments["version"] = argv[++i];
-        } else if (arg == "--help" || arg == "-h") {
-            print_flags();
-            return false;
-        } else {
-            std::cerr << "Unknown argument: " << arg << std::endl;
-            print_flags();
-            return false;
-        }
-    }
-    return true;
 }
 
 
@@ -256,7 +340,7 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
         // set deadlines for each phase
         starting_phase = get_phase_deadline(0);
         measuring_phase = get_phase_deadline(1, starting_phase);
-        if (arguments["debug"] == "True") {
+        if (config.is_true("debug")) {
             std::cout << "Starting phase started!" << std::endl;
         }
     }
@@ -264,7 +348,7 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
         // cleanup phase
         auto current_size = messagePointer->get_payload_str().size();
         add_measurement(starting_phase, received_messages, current_size, &measurements);
-        if (arguments["debug"] == "True") {
+        if (config.is_true("debug")) {
             std::cout << "Cleanup phase started!" << std::endl;
         }
         return false;
@@ -272,7 +356,7 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
     if (current_time >= starting_phase) {
         // measurement phase
         received_messages++;
-        if (arguments["debug"] == "True" && received_messages == 1) {
+        if (config.is_true("debug") && received_messages == 1) {
             std::cout << "Measurement phase started!" << std::endl;
         }
     }
@@ -304,7 +388,7 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
         received_messages = 0; // reset message counter
     }
 
-    return measurements.size() < stoi(arguments["separators"]);
+    return measurements.size() < config.get_value("separators");
 }
 
 void consume(std::unique_ptr<mqtt::client>::pointer client) {
@@ -326,7 +410,7 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
             if (client->try_consume_message(&messagePointer)) {
                 if (messagePointer) {
                     // message arrived
-                    if (std::stoi(arguments["duration"])) {
+                    if (config.get_value("duration")) {
                         measuring = time_measurement(received_messages, measurements, messagePointer, starting_phase,
                                                      measuring_phase);
                     } else {
@@ -344,20 +428,20 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
             client = prepare_consumer().release();
             if (client->is_connected()) {
                 std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
-                    std::endl;
+                        std::endl;
             }
         }
     }
     store_string(format_output(measurements)); // save all measured data into file
 }
 
-std::vector<int> parse_qos(const std::string &input) {
-    std::vector<int> numbers;
+std::vector<std::string> parse_qos(const std::string &input) {
+    std::vector<std::string> numbers;
     std::stringstream ss(input);
     std::string temp;
 
     while (std::getline(ss, temp, ',')) {
-        numbers.push_back(std::stoi(temp));
+        numbers.push_back(temp);
     }
 
     return numbers;
@@ -375,7 +459,7 @@ void clear_old_data(const std::string &path) {
             for (const auto &entry: std::filesystem::directory_iterator(dirPath)) {
                 remove_all(entry.path());
             }
-            if (arguments["debug"] == "True") {
+            if (config.is_true("debug")) {
                 std::cout << "Old measurements cleared successfully." << std::endl;
             }
         } else {
@@ -386,16 +470,39 @@ void clear_old_data(const std::string &path) {
     }
 }
 
+bool parse_arguments(int argc, char *argv[], Configuration &config) {
+    for (int i = 1; i < argc; ++i) {
+        std::string flag = argv[i];
+        flag = flag.substr(2); // remove leading "--"
+
+        if (argv[i] == "--help" || argv[i] == "-h") {
+            print_flags();
+            return false;
+        } else if (config.is_supported(flag)) {
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                config.set_flag(flag, argv[++i]);
+            } else {
+                std::cerr << "Warning: Missing value for flag " << flag << ". Using default.\n";
+            }
+        } else {
+            std::cerr << "Warning: Unknown flag '" << flag << "' ignored.\n";
+            print_flags();
+            return false;
+        }
+    }
+    return true;
+}
+
 int main(int argc, char *argv[]) {
-    if (!set_parameters(argc, argv)) {
+    if (!parse_arguments(argc, argv, config)) {
         return 1;
     }
-    if (arguments["fresh"] == "True") {
-        clear_old_data(arguments["directory"]);
+    if (config.is_true("fresh")) {
+        clear_old_data(config.get_string("directory"));
     }
     const auto client = prepare_consumer().release();
-    for (const auto &qos: parse_qos(arguments["qos_input"])) {
-        arguments["qos"] = std::to_string(qos);
+    for (const auto &qos: parse_qos(config.get_preset("qos"))) {
+        config.set_preset("qos", qos);
         consume(client);
     }
     return 0;
