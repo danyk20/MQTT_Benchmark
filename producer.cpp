@@ -155,6 +155,20 @@ public:
         throw std::invalid_argument("Invalid flag name: " + flag);
     }
 
+    bool is_true(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return get_string(flag) == "True";
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
+    bool is_empty(const std::string &flag) const {
+        if (flags_.count(flag)) {
+            return get_string(flag).empty();
+        }
+        throw std::invalid_argument("Invalid flag name: " + flag);
+    }
+
     std::vector<std::string> all_flags() const {
         std::vector<std::string> keys;
         keys.reserve(flags_.size());
@@ -290,12 +304,12 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
     const std::string measurement = "[" + std::to_string(number_of_messages) + "," + std::to_string(payload_size) + ","
                                     + std::to_string(static_cast<int>(throughput)) + "," +
                                     std::to_string(static_cast<int>(message_per_seconds)) + "]";
-    if (config.get_string("debug") == "True") {
+    if (config.is_true("debug")) {
         std::cout << measurement << " - " << duration.count() << "s" << std::endl;
     }
 
 
-    if (config.get_string("debug") == "True") {
+    if (config.is_true("debug")) {
         std::cout << "Sent " << number_of_messages << " messages of size " << payload_size << " using QoS " <<
                 config.get_preset("qos") << " bytes to topic '" << config.get_string("topic") << "' in " << duration.
                 count() << " s" << std::endl;
@@ -338,7 +352,7 @@ bool wait_for_buffer_dump(const size_t sent, const size_t percentage, const size
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     const long long publishing_message = (mosquitto_published + 1);
-    if (config.get_string("debug") == "True") {
+    if (config.is_true("debug")) {
         std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << publishing_message << std::endl;
     }
     return false;
@@ -527,7 +541,7 @@ void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, c
     * Sends multiple messages - restricted via time or number of messages
     */
     size_t last_published = 0;
-    const bool debug = config.get_string("debug") == "True";
+    const bool debug = config.is_true("debug");
     std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
 
     if (config.get_value("duration") == 0) {
@@ -601,10 +615,10 @@ std::string publish_paho(const std::string &message, int qos) {
                 .automatic_reconnect(true)
                 .mqtt_version(get_mqtt_version(config.get_string("version")))
                 .finalize();
-        if (!config.get_string("username").empty()) {
+        if (!config.is_empty("username")) {
             connOpts.set_user_name(config.get_string("username"));
         }
-        if (!config.get_string("password").empty()) {
+        if (!config.is_empty("password")) {
             connOpts.set_password(config.get_string("password"));
         }
 
@@ -668,15 +682,15 @@ mosquitto *get_mosquitto() {
      * Initilize Mosquitto client
      */
     mosquitto_lib_init();
-    const char *client_id = config.get_string("client_id").empty() ? nullptr : config.get_string("client_id").c_str();
+    const char *client_id = config.is_empty("client_id") ? nullptr : config.get_string("client_id").c_str();
     mosquitto *mosq = mosquitto_new(client_id, true, nullptr);
     if (mosq == nullptr) {
         fprintf(stderr, "Error: Out of memory.\n");
         throw std::runtime_error("Fail to create client");
     }
 
-    const char *username = config.get_string("username").empty() ? nullptr : config.get_string("username").c_str();
-    const char *password = config.get_string("password").empty() ? nullptr : config.get_string("password").c_str();
+    const char *username = config.is_empty("username") ? nullptr : config.get_string("username").c_str();
+    const char *password = config.is_empty("password") ? nullptr : config.get_string("password").c_str();
 
     mosquitto_username_pw_set(mosq, username, password);
 
@@ -716,7 +730,7 @@ long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, 
     const char *message_ignore_ptr = ignore.c_str();
     const char *message_ptr = message.c_str();
     const char *topic = config.get_string("topic").c_str();
-    const bool debug = config.get_string("debug") == "True";
+    const bool debug = config.is_true("debug");
     long long measured_messages = 0;
     std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
 
@@ -900,7 +914,7 @@ void clear_old_data(const std::string &path) {
             for (const auto &entry: std::filesystem::directory_iterator(dirPath)) {
                 remove_all(entry.path());
             }
-            if (config.get_string("debug") == "True") {
+            if (config.is_true("debug")) {
                 std::cout << "Old measurements cleared successfully." << std::endl;
             }
         } else {
@@ -923,8 +937,7 @@ bool parse_arguments(int argc, char *argv[], Configuration &config) {
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 config.set_flag(flag, argv[++i]);
             } else {
-                std::cerr << "Warning: Missing value for flag " << flag
-                        << ". Using default.\n";
+                std::cerr << "Warning: Missing value for flag " << flag << ". Using default.\n";
             }
         } else {
             std::cerr << "Warning: Unknown flag '" << flag << "' ignored.\n";
