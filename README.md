@@ -14,7 +14,7 @@ parametrized by several key variables:
 
 ## Prerequisites
 
-Before getting started with the benchmark tools install the required software dependencies:
+Before getting started with the benchmark tools, install the required software dependencies:
 
 ```shell
 sudo dnf install -y yum-utils
@@ -64,7 +64,7 @@ cmake --build build/ -j $nprocs
 - `PAHO_LIB_PATH`: path to `eclipse-paho` library installation directory.
 - `PAHO_INC_PATH`: path to `eclipse-paho` include directory.
 
-If you followed the previous installations steps these variables should be set as:
+If you followed the previous installations steps, these variables should be set as:
 
 ```shell
 export MOSQUITTO_LIB_PATH="$MOSQUITTO_REPO_PATH/build/lib/"
@@ -77,11 +77,11 @@ export PAHO_INC_PATH="${PAHO_REPO_PATH}/include/;${PAHO_REPO_PATH}/externals/pah
 
 ## Setting up MQTT Broker
 
-All sofware tools should now be installed on the system. Next order of business is to start the MQTT brokers. These
-brokers act as the middle men in the communication between producers and consumers. Therefore, these need to be
-operational in order to perform the benchmark measurements.
+All software tools should now be installed on the system. The Next step is to start the MQTT brokers. These brokers act
+as the middle men in the communication between producers and consumers. Therefore, these need to be operational in order
+to perform the benchmark measurements.
 
-These benchmark tools can work with any MQTT broker. There were used two different MQTT brokers that are seperately
+These benchmark tools can work with any MQTT broker. There were used two different MQTT brokers that are separately
 configured and spawned with Dockerfiles:
 
 - [RabbitMQ Broker](./rabbitmq/)
@@ -92,7 +92,7 @@ configured and spawned with Dockerfiles:
 
       TODO: ADD DETAILS ABOUT DOCKERFILE
 
-  To get this broker up and running you must first build the docker image:
+  To get this broker up and running, you must first build the docker image:
 
   ```shell
   sudo docker build -t rabbitmq-broker ./rabbitmq
@@ -112,7 +112,7 @@ configured and spawned with Dockerfiles:
 
       TODO: ADD DETAILS ABOUT DOCKERFILE
 
-  Similarly to the other broker you need to build the image:
+  Similarly to the other broker, you need to build the image:
 
   ```shell
   sudo docker build -t emqx-broker ./emqx
@@ -130,7 +130,7 @@ for incoming TCP connections.
 
 ---
 
-## Compilling the Producer and Consumer
+## Compiling the Producer and Consumer
 
 The steps to compile the producer and consumer applications are the following:
 
@@ -155,20 +155,20 @@ and
 
 ## Executing the Producer and Consumer
 
-Before running either of these applicarion be sure to set the following environment variables:
+Before running either of these applications, be sure to set the following environment variables:
 
 ```shell
 export BROKER_IP=<broker_ip>
 export MQTT_PORT=<broker_port> # port on which broker is listening
 ```
 
-In order not to loose any messages, one should first start the consumer. A simple example of this is:
+In order not to lose any messages, one should first start the consumer. A simple example of this is:
 
 ```shell
 ./build/consume --separators <number_of_measurements> --output <file_name> --consumers <number_of_consumers> --qos <QoS>
 ```
 
-Once the consumer is running you can start the producers with:
+Once the consumer is running, you can start the producers with:
 
 ```shell
 ./build/produce --min <min_size_in_kb> --max <max_size_in_kb> --messages <number_of_messages> --period <delay_in_ms> --qos <QoS>
@@ -214,8 +214,8 @@ Once the consumer is running you can start the producers with:
 
 - Produce messages for `--duration` seconds in periods of `--period` miliseconds. Connect to broker with credentials of
   `--username` and `--password`. By default, message payload size is 72 kilobytes. Only middle `--middle` percent of
-  messages will me included in final measurement. The messages in the edges of the time window will be separators.
-  Perform bechmark using each listed `--qos` quality of service.
+  messages will be included in final measurement. The messages in the edges of the time window will be separators.
+  Perform benchmark using each listed `--qos` quality of service.
 
   ```shell
   ./build/produce --username user --password pass --qos 0,1 --period 1000 --duration 30 --middle 80
@@ -223,7 +223,7 @@ Once the consumer is running you can start the producers with:
 
 - Produce `--messages` number of messages. Set capacity of local message buffer to `--buffer` messages. If this buffer
   is ever full, wait for `--timeout` miliseconds $\times$ aggregate buffer payload (in kilobytes) or until buffer
-  `--percentage` percentage of buffer is available. Which ever happens first.
+  `--percentage` percentage of buffer is available. Whichever happens first.
 
   ```shell
   ./build/produce --buffer 1000 --timeout 10 --percentage 40 --messages 10000
@@ -266,7 +266,7 @@ Once the consumer is running you can start the producers with:
 ### Synchronization of Producer and Consumer Flags
 
 The producer-consumer architecture allows for a complete decoupling of the components that produce messages and those
-that consume them. However, in order to perform meaningful benchmarks there must exist some level of coupling between
+that consume them. However, in order to perform meaningful benchmarks, there must exist some level of coupling between
 the flags of the consumer and the producer.
 
 - **Quality of Service** (`--qos`): This flag **must** be the same for both consumer and producer applications. There
@@ -280,20 +280,20 @@ the flags of the consumer and the producer.
   At the time of testing, RabbitMQ MQTT broker does not support QoS 2.
 - **Separators** (`--separators`): Separators are special message batches used to signal the consumer. The consumer will
   continue consuming messages until a predefined number of separators are consumed. Consider the following message
-  stream where '0's represent separators.
+  stream where '0's are representing separators.
 
   ```text
   0000000111110000001111101111100111110000
   ```
 
-  In this stream of messages there are a total of four separators. The consumer will count consecutive stream of seperators
-  as a single occurence and will ignore any separators until it receives a first valid message.
+  In this stream of messages, there are a total of four separators. The consumer will count consecutive stream of
+  separators as a single occurrence and will ignore any separators until it receives a first valid message.
 
   Having this concept in mind is important for performing benchmarks as it allows the producer and consumer to "agree"
-  on a message stream strucure allowing for the results to be saved accordingly.
+  on a message stream structure allowing for the results to be saved accordingly.
 
    ---
-  :warning: If the consumer expects more separators then the producer sends then it will run indefinately.
+  :warning: If the consumer expects more separators, then the producer sends then it will run indefinitely.
 
   ---
 
@@ -371,7 +371,7 @@ Dockerfile:1
 ERROR: failed to solve: rabbitmq:4.0-management: failed to resolve source metadata for docker.io/library/rabbitmq:4.0-management: failed to copy: httpReadSeeker: failed open: unexpected status code https://registry-1.docker.io/v2/library/rabbitmq/manifests/sha256:c405df63e4fb4fb5e2dfa2177dc367914f5f288b3b6b9ed959cfcc69908742c5: 429 Too Many Requests - Server message: toomanyrequests: You have reached your unauthenticated pull rate limit. https://www.docker.com/increase-rate-limit
 ```
 
-**Explanation**: For some reason you have reached a pull rate limit.
+**Explanation**: For some reason, you have reached a pull rate limit.
 
 - **Fix 1**: Try again later.
 - **Fix 2**: Try again much later.
