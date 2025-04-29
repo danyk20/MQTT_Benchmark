@@ -124,13 +124,13 @@ configured and spawned with Dockerfiles:
   sudo docker run --rm -it -d --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx
   ```
 
+---
+:warning: In case you plan to run both brokers at the same time, make sure to have them use different ports to listen for incoming TCP connections.
 
-> [!WARNING] 
-> In case you plan to run both brokers at the same time, make sure to have them use different ports to listen for incoming TCP connections.
+---
 
-
-> [!TIP] 
-> You can start and stop both brokers using Docker Compose if you have it installed.
+---
+:+1: You can start and stop both brokers using Docker Compose if you have it installed.
 
 Start both brokers:
 ```shell
@@ -141,6 +141,7 @@ Stop both brokers:
 ```shell
    sudo docker compose down
 ```
+---
 
 ## Compiling the Producer and Consumer
 
