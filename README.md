@@ -26,7 +26,9 @@ sudo systemctl start docker
 
 ### MQTT Libraries
 
-In this benchmark, two distinct MQTT libraries were tested. These are [eclipse-paho](https://github.com/eclipse-paho/paho.mqtt.cpp) and [eclipse-mosquitto](https://github.com/eclipse-mosquitto/mosquitto).
+In this benchmark, two distinct MQTT libraries were tested. These
+are [eclipse-paho](https://github.com/eclipse-paho/paho.mqtt.cpp)
+and [eclipse-mosquitto](https://github.com/eclipse-mosquitto/mosquitto).
 
 The steps to install `eclipse-paho` are the following:
 
@@ -34,7 +36,7 @@ The steps to install `eclipse-paho` are the following:
 git clone https://github.com/eclipse/paho.mqtt.cpp
 cd paho.mqtt.cpp
 export PAHO_REPO_PATH=`pwd`
-git checkout v1.4.0
+git checkout v1.5.2
 git submodule init
 git submodule update
 cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
@@ -47,7 +49,7 @@ The steps to install `eclipse-mosquitto` are the following:
 git clone https://github.com/eclipse-mosquitto/mosquitto.git
 cd mosquitto
 export MOSQUITTO_REPO_PATH=`pwd`
-git checkout v2.0.18
+git checkout v2.0.21
 git submodule init
 git submodule update
 cmake -Bbuild -H. -DDOCUMENTATION=OFF
@@ -75,17 +77,20 @@ export PAHO_INC_PATH="${PAHO_REPO_PATH}/include/;${PAHO_REPO_PATH}/externals/pah
 
 ## Setting up MQTT Broker
 
-All sofware tools should now be installed on the system. Next order of business is to start the MQTT brokers. These brokers act as the middle men in the communication between producers and consumers. Therefore, these need to be operational in order to perform the benchmark measurements.
+All sofware tools should now be installed on the system. Next order of business is to start the MQTT brokers. These
+brokers act as the middle men in the communication between producers and consumers. Therefore, these need to be
+operational in order to perform the benchmark measurements.
 
-These benchmark tools can work with any MQTT broker. There were used two different MQTT brokers that are seperately configured and spawned with Dockerfiles:
+These benchmark tools can work with any MQTT broker. There were used two different MQTT brokers that are seperately
+configured and spawned with Dockerfiles:
 
 - [RabbitMQ Broker](./rabbitmq/)
-  - [Configuration](./rabbitmq/rabbitmq.conf)
+    - [Configuration](./rabbitmq/rabbitmq.conf)
 
-    TODO: ADD DETAILS ABOUT CONFIGURATION
-  - [Dockerfile](./rabbitmq/Dockerfile)
+      TODO: ADD DETAILS ABOUT CONFIGURATION
+    - [Dockerfile](./rabbitmq/Dockerfile)
 
-    TODO: ADD DETAILS ABOUT DOCKERFILE
+      TODO: ADD DETAILS ABOUT DOCKERFILE
 
   To get this broker up and running you must first build the docker image:
 
@@ -100,12 +105,12 @@ These benchmark tools can work with any MQTT broker. There were used two differe
   ```
 
 - [EMQX Broker](./emqx/)
-  - [Configuration](./emqx/emqx.conf)
+    - [Configuration](./emqx/emqx.conf)
 
-    TODO: ADD DETAILS ABOUT CONFIGURATION
-  - [Dockerfile](./emqx/Dockerfile)
+      TODO: ADD DETAILS ABOUT CONFIGURATION
+    - [Dockerfile](./emqx/Dockerfile)
 
-    TODO: ADD DETAILS ABOUT DOCKERFILE
+      TODO: ADD DETAILS ABOUT DOCKERFILE
 
   Similarly to the other broker you need to build the image:
 
@@ -120,7 +125,8 @@ These benchmark tools can work with any MQTT broker. There were used two differe
   ```
 
 ---
-:warning: In case you plan to run both brokers at the same time, make sure to have them use different ports to listen for incoming TCP connections.
+:warning: In case you plan to run both brokers at the same time, make sure to have them use different ports to listen
+for incoming TCP connections.
 
 ---
 
@@ -194,23 +200,30 @@ Once the consumer is running you can start the producers with:
 - `version` - protocol version: *3.1.1*
 - `duration` - messages will be constantly sending for: *60*s
 - `middle` - begging and end of the measurement will be cut off except middle part of: *50*%
-  - look into `time restricted measurement` pseudocode above
+    - look into `time restricted measurement` pseudocode above
 
 ### Producer Examples
 
-- Produce messages with payload sizes doubling from `--min` up to `--max` in kilobytes (e.g., 1, 2, 4, ..., 4096). Repeat each payload `--messages` times each. Send seperator message after each `--messages` messages have been sent. Use `--library` library to connect to broker. Repeat the whole measurement loop `--repetitions` times.
+- Produce messages with payload sizes doubling from `--min` up to `--max` in kilobytes (e.g., 1, 2, 4, ..., 4096).
+  Repeat each payload `--messages` times each. Send seperator message after each `--messages` messages have been sent.
+  Use `--library` library to connect to broker. Repeat the whole measurement loop `--repetitions` times.
 
   ```shell
   ./build/produce --min 1 --max 8000 --messages 1000 --seperator True --library mosquitto --repetitions 5
   ```
 
-- Produce messages for `--duration` seconds in periods of `--period` miliseconds. Connect to broker with credentials of `--username` and `--password`. By default, message payload size is 72 kilobytes. Only middle `--middle` percent of messages will me included in final measurement. The messages in the edges of the time window will be separators. Perform bechmark using each listed `--qos` quality of service.
+- Produce messages for `--duration` seconds in periods of `--period` miliseconds. Connect to broker with credentials of
+  `--username` and `--password`. By default, message payload size is 72 kilobytes. Only middle `--middle` percent of
+  messages will me included in final measurement. The messages in the edges of the time window will be separators.
+  Perform bechmark using each listed `--qos` quality of service.
 
   ```shell
   ./build/produce --username user --password pass --qos 0,1 --period 1000 --duration 30 --middle 80
   ```
 
-- Produce `--messages` number of messages. Set capacity of local message buffer to `--buffer` messages. If this buffer is ever full, wait for `--timeout` miliseconds $\times$ aggregate buffer payload (in kilobytes) or until buffer `--percentage` percentage of buffer is available. Which ever happens first.
+- Produce `--messages` number of messages. Set capacity of local message buffer to `--buffer` messages. If this buffer
+  is ever full, wait for `--timeout` miliseconds $\times$ aggregate buffer payload (in kilobytes) or until buffer
+  `--percentage` percentage of buffer is available. Which ever happens first.
 
   ```shell
   ./build/produce --buffer 1000 --timeout 10 --percentage 40 --messages 10000
@@ -242,7 +255,8 @@ Once the consumer is running you can start the producers with:
   ./build/consume --separators 10
   ```
 
-- Consume messages for `--duration` seconds. Only include messages in measurement that arrived in last `--ratio` percent of full duration period.
+- Consume messages for `--duration` seconds. Only include messages in measurement that arrived in last `--ratio` percent
+  of full duration period.
 
   ```shell
   ./build/consume --duration 30 --ratio 70
@@ -250,24 +264,32 @@ Once the consumer is running you can start the producers with:
 
 ### Synchronization of Producer and Consumer Flags
 
-The producer-consumer architecture allows for a complete decoupling of the components that produce messages and those that consume them. However, in order to perform meaningful benchmarks there must exist some level of coupling between the flags of the consumer and the producer.
+The producer-consumer architecture allows for a complete decoupling of the components that produce messages and those
+that consume them. However, in order to perform meaningful benchmarks there must exist some level of coupling between
+the flags of the consumer and the producer.
 
-- **Quality of Service** (`--qos`): This flag **must** be the same for both consumer and producer applications. There exist 3 categories of quality of service:
+- **Quality of Service** (`--qos`): This flag **must** be the same for both consumer and producer applications. There
+  exist 3 categories of quality of service:
 
-  - QoS 0: With this quality of service, messages sent by the producer are not verified by the broker.
-  - QoS 1: With this quality of service, producer receives acknowledgement from broker for every message produced.
-  - QoS 2: With this quality of service, producer receives acknowledgement from consumer (via broker) for every message produced.
+    - QoS 0: With this quality of service, the broker does not send acknowledgment for any message sent by the producer.
+    - QoS 1: With this quality of service, producer receives acknowledgement from broker for every message produced.
+    - QoS 2: With this quality of service, producer receives acknowledgement from consumer (via broker) for every
+      message produced.
 
   At the time of testing, RabbitMQ MQTT broker does not support QoS 2.
-- **Separators** (`--separators`): Separators are special message batches used to signal the consumer. The consumer will continue consuming messages until a predefined number of separators are consumed. Consider the following message stream where '0's represent separators.
+- **Separators** (`--separators`): Separators are special message batches used to signal the consumer. The consumer will
+  continue consuming messages until a predefined number of separators are consumed. Consider the following message
+  stream where '0's represent separators.
 
   ```text
   0000000111110000001111101111100111110000
   ```
 
-  In this stream of messages there are a total of 4 separators. The consumer will count consecutive stream of seperators as a single occurence and will ignore any separators until it receives a first valid message.
+  In this stream of messages there are a total of four separators. The consumer will count consecutive stream of seperators
+  as a single occurence and will ignore any separators until it receives a first valid message.
 
-  Having this concept in mind is important for performing benchmarks as it allows the producer and consumer to "agree" on a message stream strucure allowing for the results to be saved accordingly.
+  Having this concept in mind is important for performing benchmarks as it allows the producer and consumer to "agree"
+  on a message stream strucure allowing for the results to be saved accordingly.
 
    ---
   :warning: If the consumer expects more separators then the producer sends then it will run indefinately.
@@ -275,6 +297,30 @@ The producer-consumer architecture allows for a complete decoupling of the compo
   ---
 
 ## Troubleshooting
+
+### CMAKE error: implicit instantiation of undefined template
+
+**Error**:
+
+```text
+...  error: implicit instantiation of undefined template 'std::char_traits<unsigned char>' 
+821 |   static_assert(is_same<_CharT, typename traits_type::char_type>::value,
+```
+
+or
+
+```text
+Clang incorrect version (17), please use only Clang 18!
+```
+
+**Explanation**: LLVM version is not compatible, download and use LLVM@18
+
+- **Fix 1**:
+  ```shell
+  brew install llvm@18
+  export CXX=/opt/homebrew/opt/llvm@18/bin/clang++
+  export CC=/opt/homebrew/opt/llvm@18/bin/clang
+  ```
 
 ### TCP/TLS connect failure
 
@@ -303,7 +349,8 @@ Failed to publish MQTT messages: MQTT error [-12]: No more messages can be buffe
 
 - **Fix 1**: Increase buffer capacity via the `--buffer` flag.
 - **Fix 2**: Increase timeout via the `--timeout` flag.
-  - **Might help**: Set minimum timeout via the `--min_timeout` flag in order to force timeout to be less dependent on smaller payload sizes.
+    - **Might help**: Set minimum timeout via the `--min_timeout` flag in order to force timeout to be less dependent on
+      smaller payload sizes.
 
 ### You have reached your unauthenticated pull rate limit
 
@@ -328,7 +375,6 @@ ERROR: failed to solve: rabbitmq:4.0-management: failed to resolve source metada
 - **Fix 1**: Try again later.
 - **Fix 2**: Try again much later.
 
-
 ## Visualisation
 
-You can visualise your results using [MQTT Benchmark Plot](https://github.com/danyk20/MQTT_Benchmark_Plot) repo.
+You can visualize your results using [MQTT Benchmark Plot](https://github.com/danyk20/MQTT_Benchmark_Plot) repo.
