@@ -10,17 +10,19 @@
 #include <cstdio>
 #include <unistd.h>
 
+#define UNUSED(x) (void)(x)
+
 class Configuration {
 public:
     Configuration() {
         flags_ = {
             {
                 "debug",
-                {"print debug messages, e.g. when buffer reach the limit", "False", ""}
+                {"print debug messages, e.g. when buffer reaches the limit", "False", ""}
             },
             {
                 "fresh",
-                {"delete all previous measurements from data folder", "False", ""}
+                {"delete all previous measurements from output folder", "False", ""}
             },
             {
                 "separator",
@@ -40,7 +42,7 @@ public:
             },
             {
                 "library",
-                {"which if the supported library to use [paho/mosquitto]", "paho", ""}
+                {"which if the supported libraries to use [paho/mosquitto]", "paho", ""}
             },
             {
                 "version",
@@ -111,7 +113,7 @@ public:
             },
             {
                 "debug_period",
-                {"how often will be debug message about progress printed each in seconds", "5", ""}
+                {"Time between consecutive progress messages in seconds.", "5", ""}
             },
         };
     }
@@ -195,7 +197,7 @@ private:
 Configuration config;
 
 static bool is_reconnecting = false;
-static long long mosquitto_published = 0;
+static size_t mosquitto_published = 0;
 
 static void connected_handler(const std::string &cause) {
     if (cause != "connect onSuccess called") {
@@ -351,7 +353,7 @@ bool wait_for_buffer_dump(const size_t sent, const size_t percentage, const size
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    const long long publishing_message = (mosquitto_published + 1);
+    const size_t publishing_message = (mosquitto_published + 1);
     if (config.is_true("debug")) {
         std::cout << get_timeout(payload_size) << "ms timeout waiting for message " << publishing_message << std::endl;
     }
@@ -437,7 +439,7 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
 }
 
 void send(size_t payload_size, mosquitto &mosq, const char *msg, const char *topic, const int qos,
-          long long &sent, const bool debug = false) {
+          size_t &sent, const bool debug = false) {
     /**
     * @ payload_size - size of the message
     * @ client - configured connection to broker
@@ -546,7 +548,7 @@ void perform_publishing_cycle(size_t payload_size, mqtt::async_client &client, c
 
     if (config.get_value("duration") == 0) {
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
-        for (auto i = 0; i < config.get_value("messages"); ++i) {
+        for (size_t i = 0; i < config.get_value("messages"); ++i) {
             send(payload_size, client, mqtt_message, tokens, last_published, debug && print_debug(next_print));
         }
     } else {
@@ -667,19 +669,22 @@ std::string publish_paho(const std::string &message, int qos) {
 }
 
 void on_connect(struct mosquitto *mosq, void *obj, const int reason_code) {
-    printf("%lld connected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
+    UNUSED(mosq); UNUSED(obj);
+    printf("%ld connected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
            mosquitto_connack_string(reason_code));
     std::this_thread::sleep_for(std::chrono::seconds(5)); // TO DO Remove constant
     is_reconnecting = false;
 }
 
 void on_publish(struct mosquitto *mosq, void *obj, const int id) {
+    UNUSED(mosq); UNUSED(obj); UNUSED(id);
     mosquitto_published++;
 }
 
 void on_disconnect(struct mosquitto *mosq, void *p, int i) {
+    UNUSED(mosq); UNUSED(p);
     is_reconnecting = true;
-    printf("%lld Disconnected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
+    printf("%ld Disconnected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
            mosquitto_connack_string(i));
 }
 
@@ -721,7 +726,7 @@ mosquitto *get_mosquitto() {
     return mosq;
 }
 
-long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, const int qos) {
+size_t perform_publishing_cycle(mosquitto &mosq, const std::string &message, const int qos) {
     /**
     * @ mosq - configured connection to broker
     * @ message - message as a string
@@ -737,14 +742,14 @@ long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, 
     const char *message_ptr = message.c_str();
     const char *topic = config.get_string("topic").c_str();
     const bool debug = config.is_true("debug");
-    long long measured_messages = 0;
+    size_t measured_messages = 0;
     std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
 
-    long long sent = 0;
+    size_t sent = 0;
     if (config.get_value("duration") == 0) {
         sent++; // initial separator
         // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
-        for (long long i = 0; i < config.get_value("messages"); ++i) {
+        for (size_t i = 0; i < config.get_value("messages"); ++i) {
             send(payload_len, mosq, message_ptr, topic, qos, sent, debug && print_debug(next_print));
         }
         measured_messages = sent - 1;
@@ -759,7 +764,7 @@ long long perform_publishing_cycle(mosquitto &mosq, const std::string &message, 
             }
         }
     } else {
-        long long phase_0_messages = 0;
+        size_t phase_0_messages = 0;
         // Starting phase: 0
         if (debug) {
             std::cout << " Starting phase " << std::endl;
@@ -813,7 +818,7 @@ std::string publish_mosquitto(const std::string &message, const int qos) {
 
     const auto start_time = std::chrono::steady_clock::now();
 
-    const long long sent_messages = perform_publishing_cycle(*mosq, message, qos);
+    const size_t sent_messages = perform_publishing_cycle(*mosq, message, qos);
     std::string measurement = process_measurement(start_time, payload_len, sent_messages);
 
     publish_separator(*mosq, true);
@@ -936,7 +941,7 @@ bool parse_arguments(int argc, char *argv[], Configuration &config) {
         std::string flag = argv[i];
         flag = flag.substr(2); // remove leading "--"
 
-        if (argv[i] == "--help" || argv[i] == "-h") {
+        if (flag == "help" || flag == "h") {
             print_flags();
             return false;
         } else if (config.is_supported(flag)) {
@@ -966,7 +971,7 @@ int main(int argc, char *argv[]) {
     measurements.reserve(messages.size());
     for (const auto &qos: parse_qos(config.get_string("qos"))) {
         config.set_preset("qos", qos);
-        for (int i = 0; i < config.get_value("repetitions"); ++i) {
+        for (size_t i = 0; i < config.get_value("repetitions"); ++i) {
             for (const auto &message: messages) {
                 measurements.emplace_back(publish(config.get_string("library"), message,
                                                   std::stoi(config.get_preset("qos"))));
