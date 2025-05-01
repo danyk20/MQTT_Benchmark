@@ -13,7 +13,7 @@ public:
             },
             {
                 "fresh",
-                {"delete all previous measurements from data folder", "False", ""}
+                {"delete all previous measurements from output folder", "False", ""}
             },
             {
                 "output",
@@ -494,7 +494,7 @@ bool parse_arguments(int argc, char *argv[], Configuration &config) {
         std::string flag = argv[i];
         flag = flag.substr(2); // remove leading "--"
 
-        if (argv[i] == "--help" || argv[i] == "-h") {
+        if (flag == "help" || flag == "h") {
             print_flags();
             return false;
         } else if (config.is_supported(flag)) {
