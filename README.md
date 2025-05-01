@@ -150,8 +150,8 @@ The steps to compile the producer and consumer applications are the following:
 ```shell
 git clone https://github.com/danyk20/MQTT_Benchmark.git
 cd MQTT_Benchmark
-cmake -Bbuild -H.
-cmake --build build -DCMAKE_CXX_COMPILER=/usr/bin/g++
+cmake -Bbuild -H. -DCMAKE_CXX_COMPILER=/usr/bin/g++
+cmake --build build
 ```
 
 You can now test the compilation was successful with:
@@ -189,31 +189,34 @@ Once the consumer is running, you can start the producers with:
 
 ### Producer Flags
 
-- `debug` - print debug print when buffer reaches the limit: *False*
-- `fresh` - delete all previous measurements: *False*
-- `directory` - path to the directory where all measurements will be stored: *data/producer*
-- `library` - which library to use *PAHO*
-- `separator` - send separator after last message of each payload batch *True*
-- `output` - output file: *consumer_results.txt*
-- `topic` - topic to subscribe: *test*
-- `client_id` - client id: *\<blank>*
-- `username` - authentication on broker *\<blank>*
-- `password` - authentication on broker *\<blank>*
-- `min` - minimum payload size *72*KB
-- `max` - maximum payload size *72*KB
-- `qos` - QoS list of more values separated by comma *1*
-- `timeout` - timeout for each KB of payload *5*s
-- `min_timeout` - minimum total timeout *10000*ms
-- `repetitions` - number of times to run the script *1*
-- `buffer` - max number of messages that can stored in the buffer *100*
-- `messages` - number of messages that will send per each payload size *400*
-- `period` - minimum delay between 2 messages *80*ms
-- `percentage` - once is buffer full wait until buffer is less than percentage % full *50*
-- `producers` - number of producers involved (used for storage structure): *1*
-- `version` - protocol version: *3.1.1*
-- `duration` - messages will be constantly sending for: *60*s
-- `middle` - begging and end of the measurement will be cut off except middle part of: *50*%
-    - look into `time restricted measurement` pseudocode above
+```console
+Supported arguments flags:
+--debug_period    Time between consecutive progress messages in seconds.                                     : <5>
+--middle          beginning and end of the measurement will be cut off except middle part of [0-100]%        : <50>
+--duration        number of seconds to send messages (exclusive with --messages flag)                        : <0>
+--percentage      once buffer is full, wait until buffer is less than percentage [0-100]%                    : <50>
+--timeout         timeout for each KB of payload in ms                                                       : <5>
+--repetitions     number of times to run the all measurements all over again                                 : <1>
+--messages        number of messages that will send per each payload size (exclusive with --duration flag)   : <400>
+--min             minimum payload size in KB                                                                 : <72>
+--period          minimum delay between 2 consecutive messages                                               : <80>
+--directory       path to the directory where all measurements will be stored                                : <data/producer>
+--password        authentication on broker                                                                   : <>
+--buffer          max number of messages that can stored in the buffer                                       : <100>
+--username        authentication on broker                                                                   : <>
+--qos             Quality of Service, one or more values separated by comma                                  : <1>
+--producers       number of producers involved (used for storage structure)                                  : <1>
+--max             maximum payload size in KB                                                                 : <72>
+--library         which if the supported libraries to use [paho/mosquitto]                                   : <paho>
+--client_id       unique client identification                                                               : <>
+--topic           topic to which messages will be published                                                  : <test>
+--output          output file name                                                                           : <producer_results.txt>
+--version         protocol version (currently supported only for paho)                                       : <3.1.1>
+--separator       send separator after last message of each payload batch                                    : <True>
+--min_timeout     minimum total timeout in ms                                                                : <1000>
+--fresh           delete all previous measurements from output folder                                        : <False>
+--debug           print debug messages, e.g. when buffer reaches the limit                                   : <False>
+```
 
 ### Producer Examples
 
@@ -244,22 +247,25 @@ Once the consumer is running, you can start the producers with:
 
 ### Consumer Flags
 
-- `debug` - print debug print after each separator if True, or print each message if "messages": *False*
-- `fresh` - delete all previous measurements: *False*
-- `directory` - path to the directory where all measurements will be stored: *data/consumer*
-- `separators` - number of separators to consume: *1*
-- `output` - output file: *consumer_results.txt*
-- `topic` - topic to subscribe: *test*
-- `client_id` - client id: *<blank>*
-- `consumers` - number of consumers involved (used for storage structure): *1*
-- `version` - protocol version: *3.1.1*
-- `qos` - QoS list of more values separated by comma *1*
-- `username` - authentication on broker *<blank>*
-- `password` - authentication on broker *<blank>*
-- `report` - how often should consumer report number of received messages when debug is True in seconds *30*
-- `duration` - total measurement duration (disabled by default) *0*s
-- `ratio` - ratio of overall duration that will be measured (starting phase is complement before this phase nad it will
-  not be measured) *80*%
+```console
+Supported arguments flags:
+--report          how often should consumer report number of received messages when debug is True in seconds           : <30>
+--duration        number of seconds to send messages (exclusive with --messages flag)                                  : <0>
+--separators      number of separators to consume                                                                      : <1>
+--consumers       number of consumers involved (used for storage structure)                                            : <1>
+--directory       path to the directory where all measurements will be stored                                          : <data/producer>
+--qos             Quality of Service, one or more values separated by comma                                            : <1>
+--version         protocol version (currently supported only for paho)                                                 : <3.1.1>
+--library         which if the supported library to use [paho]                                                         : <paho>
+--ratio           ratio of overall duration that will be measured (starting phase is complement, ignored) [0-100]%     : <80>
+--password        authentication on broker                                                                             : <>
+--client_id       unique client identification                                                                         : <>
+--username        authentication on broker                                                                             : <>
+--topic           topic from which messages will be subscribed                                                         : <test>
+--output          output file name                                                                                     : <consumer_results.txt>
+--fresh           delete all previous measurements from output folder                                                  : <False>
+--debug           print debug messages, e.g. separator arrived                                                         : <False>
+```
 
 ### Consumer Examples
 
