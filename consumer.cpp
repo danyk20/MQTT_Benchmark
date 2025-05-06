@@ -74,7 +74,7 @@ public:
             },
             {
                 "directory",
-                {"path to the directory where all measurements will be stored", "data/producer", ""}
+                {"path to the directory where all measurements will be stored", "data/consumer", ""}
             },
             {
                 "consumers",
