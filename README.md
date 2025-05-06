@@ -41,6 +41,7 @@ git submodule init
 git submodule update
 cmake -Bbuild -H. -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_EXAMPLES=ON
 cmake --build build/ -j $nprocs
+cd ..
 ```
 
 The steps to install `eclipse-mosquitto` are the following:
@@ -54,6 +55,7 @@ git submodule init
 git submodule update
 cmake -Bbuild -H. -DDOCUMENTATION=OFF
 cmake --build build/ -j $nprocs
+cd ..
 ```
 
 ---
