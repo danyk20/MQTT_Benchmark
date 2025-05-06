@@ -2,6 +2,31 @@
 #include <mqtt/client.h>
 #include <ostream>
 #include <filesystem>
+#include <unistd.h>
+
+#include "mosquitto.h"
+
+class Measurement {
+public:
+    bool active;
+    std::chrono::time_point<std::chrono::steady_clock> start_time;
+    int received_messages;
+    std::chrono::time_point<std::chrono::steady_clock> starting_phase;
+    std::chrono::time_point<std::chrono::steady_clock> measuring_phase;
+    std::vector<std::string> results;
+    size_t payload_size = 0;
+    std::chrono::time_point<std::chrono::steady_clock> next_report;
+
+    Measurement() {
+        this->active = true;
+        this->received_messages = 0;
+    }
+
+    void start() {
+        this->measuring_phase = std::chrono::steady_clock::now();
+        this->next_report = std::chrono::steady_clock::now();
+    }
+};
 
 class Configuration {
 public:
@@ -29,7 +54,7 @@ public:
             },
             {
                 "library",
-                {"which if the supported library to use [paho]", "paho", ""}
+                {"which if the supported library to use [paho/mosquitto]", "paho", ""}
             },
             {
                 "version",
@@ -295,7 +320,7 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
 }
 
 bool process_payload(int &received_messages, size_t &current_size,
-                     const mqtt::const_message_ptr &message_pointer,
+                     const std::string &messageString,
                      std::chrono::time_point<std::chrono::steady_clock> &next_report) {
     /**
      * Read message size and update message counter. Empty message is considered as separator.
@@ -303,12 +328,11 @@ bool process_payload(int &received_messages, size_t &current_size,
      * @received_messages - how many messages have been received
      * @current_size - how big is each of the messages
      * @separation - flag whether is it separation message (with no payload)
-     * @message_pointer - pointer to the received message
+     * @messageString - received message as a String
      * @next_report - earliest timestamp when next report about number of consumed messages will be printed
      *
      * returns True only if the message is empty
      */
-    const std::string messageString = message_pointer->get_payload_str();
     if (config.get_string("debug") == "messages" || config.get_string("debug") == "MESSAGES") {
         std::cout << messageString << std::endl;
     }
@@ -337,7 +361,7 @@ void print_flags() {
 
 
 bool time_measurement(int &received_messages, std::vector<std::string> &measurements,
-                      const mqtt::const_message_ptr &messagePointer,
+                      const std::string &messagePointer,
                       std::chrono::time_point<std::chrono::steady_clock> &starting_phase,
                       std::chrono::time_point<std::chrono::steady_clock> &measuring_phase) {
     /**
@@ -362,7 +386,7 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
     }
     if (current_time >= measuring_phase) {
         // cleanup phase
-        auto current_size = messagePointer->get_payload_str().size();
+        const size_t current_size = messagePointer.size();
         add_measurement(starting_phase, received_messages, current_size, &measurements);
         if (config.is_true("debug")) {
             std::cout << "Cleanup phase started!" << std::endl;
@@ -380,7 +404,7 @@ bool time_measurement(int &received_messages, std::vector<std::string> &measurem
 }
 
 bool count_measurement(int &received_messages, std::vector<std::string> &measurements,
-                       const mqtt::const_message_ptr &messagePointer,
+                       const std::string &message,
                        std::chrono::steady_clock::time_point &start_time, size_t &payload_size,
                        std::chrono::time_point<std::chrono::steady_clock> &next_report) {
     /**
@@ -388,7 +412,7 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
     *
     * @received_messages - how many messages have been received
     * @measurements - list of measurements to save as the result
-    * @message_pointer - pointer to the current received message
+    * @message - current received message as a String
     * @start_time - first message timestap that trigger the mesurement
     * @payload_size - size of the first measured payload
     * @next_report - earliest timestamp when next report about number of consumed messages will be printed
@@ -396,7 +420,7 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
     * returns True only if the measurement hasn't finished yet otherwise False
     */
     size_t current_size;
-    bool separation = process_payload(received_messages, current_size, messagePointer, next_report);
+    bool separation = process_payload(received_messages, current_size, message, next_report);
     if (received_messages == 1 && (!separation)) {
         start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
         payload_size = current_size;
@@ -409,31 +433,28 @@ bool count_measurement(int &received_messages, std::vector<std::string> &measure
     return measurements.size() < config.get_value("separators");
 }
 
-void consume(std::unique_ptr<mqtt::client>::pointer client) {
-    /**
-     * Consume all messages from subscribed topic untill defined number of separators arrive or time based deadline is
-     * reached. Several consecutive separators are counted as single separator.
-     */
+std::vector<std::string> paho_measure() {
+    bool measuring = true;
     auto start_time = std::chrono::steady_clock::now();
     int received_messages = 0;
-    std::vector<std::string> measurements;
     mqtt::const_message_ptr messagePointer;
     std::chrono::time_point<std::chrono::steady_clock> starting_phase;
     std::chrono::time_point<std::chrono::steady_clock> measuring_phase;
-    bool measuring = true;
+    std::unique_ptr<mqtt::client>::pointer client = prepare_consumer().release();
+    std::vector<std::string> measurements;
     size_t payload_size;
     std::chrono::time_point<std::chrono::steady_clock> next_report = std::chrono::steady_clock::now();
-
     while (measuring) {
         if (client->is_connected()) {
             if (client->try_consume_message(&messagePointer)) {
                 if (messagePointer) {
+                    std::string message = messagePointer->get_payload_str();
                     // message arrived
                     if (config.get_value("duration")) {
-                        measuring = time_measurement(received_messages, measurements, messagePointer, starting_phase,
+                        measuring = time_measurement(received_messages, measurements, message, starting_phase,
                                                      measuring_phase);
                     } else {
-                        measuring = count_measurement(received_messages, measurements, messagePointer, start_time,
+                        measuring = count_measurement(received_messages, measurements, message, start_time,
                                                       payload_size, next_report);
                     }
                 } else {
@@ -450,6 +471,80 @@ void consume(std::unique_ptr<mqtt::client>::pointer client) {
                         std::endl;
             }
         }
+    }
+    return measurements;
+}
+
+void on_connect(struct mosquitto *mosq, void *obj, int rc) {
+    if (rc == 0) {
+        std::cout << "Connected to broker.\n";
+        mosquitto_subscribe(mosq, nullptr, config.get_string("topic").c_str(), std::stoi(config.get_preset("qos")));
+    } else {
+        std::cerr << "Failed to connect, return code " << rc << "\n";
+    }
+}
+
+void on_message(struct mosquitto *mosq, void *obj, const mosquitto_message *msg) {
+    const std::string message(static_cast<char *>(msg->payload), msg->payloadlen);
+    if (config.get_string("debug") == "messages" || config.get_string("debug") == "MESSAGES") {
+        std::cout << "Received message on topic " << msg->topic << ": " << message << "\n";
+    }
+    auto *measurement = static_cast<Measurement *>(obj);
+
+    if (config.get_value("duration")) {
+        measurement->active = time_measurement(measurement->received_messages, measurement->results,
+                                               message, measurement->starting_phase,
+                                               measurement->measuring_phase);
+    } else {
+        measurement->active = count_measurement(measurement->received_messages, measurement->results,
+                                                message, measurement->start_time,
+                                                measurement->payload_size, measurement->next_report);
+    }
+}
+
+std::vector<std::string> mosquitto_measure() {
+    Measurement measurement;
+    mosquitto_lib_init();
+
+    mosquitto *mosq = mosquitto_new(config.is_empty("client_id") ? nullptr : config.get_string("client_id").c_str(),
+                                    true, &measurement);
+    while (!mosq) {
+        std::cerr << "Failed to create Mosquitto instance.\n";
+        sleep(1);
+    }
+
+    mosquitto_connect_callback_set(mosq, on_connect);
+    mosquitto_message_callback_set(mosq, on_message);
+
+    while (mosquitto_connect(mosq, std::getenv("BROKER_IP"), std::stoi(std::getenv("MQTT_PORT")), 60) !=
+           MOSQ_ERR_SUCCESS) {
+        std::cerr << "Unable to connect to broker.\n";
+        sleep(1);
+    }
+
+    mosquitto_loop_start(mosq);
+
+    while (measurement.active) {
+    }
+
+    mosquitto_disconnect(mosq);
+    mosquitto_loop_stop(mosq, true);
+    mosquitto_destroy(mosq);
+    mosquitto_lib_cleanup();
+    return measurement.results;
+}
+
+void consume() {
+    /**
+     * Consume all messages from subscribed topic untill defined number of separators arrive or time based deadline is
+     * reached. Several consecutive separators are counted as single separator.
+     */
+    std::string library = config.get_string("library");
+    std::vector<std::string> measurements;
+    if (library == "PAHO" || library == "paho") {
+        measurements = paho_measure();
+    } else if (library == "MOSQUITTO" || library == "mosquitto") {
+        measurements = mosquitto_measure();
     }
     store_string(format_output(measurements)); // save all measured data into file
 }
@@ -519,10 +614,9 @@ int main(int argc, char *argv[]) {
     if (config.is_true("fresh")) {
         clear_old_data(config.get_string("directory"));
     }
-    const auto client = prepare_consumer().release();
     for (const auto &qos: parse_qos(config.get_preset("qos"))) {
         config.set_preset("qos", qos);
-        consume(client);
+        consume();
     }
     return 0;
 }
