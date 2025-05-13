@@ -1,5 +1,5 @@
 #include <fstream>
-#include <mqtt/client.h>
+#include <mqtt/async_client.h>
 #include <ostream>
 #include <filesystem>
 #include <unistd.h>
@@ -278,7 +278,32 @@ int get_mqtt_version(const std::string &user_input) {
     return version;
 }
 
-std::unique_ptr<mqtt::client> prepare_consumer() {
+void init_client(mqtt::async_client &client) {
+    auto connOpts = mqtt::connect_options_builder()
+            .clean_session()
+            .automatic_reconnect()
+            .keep_alive_interval(std::chrono::seconds(30))
+            .mqtt_version(get_mqtt_version(config.get_string("version")))
+            .finalize();
+    if (!config.is_empty("username")) {
+        connOpts.set_user_name(config.get_string("username"));
+    }
+    if (!config.is_empty("password")) {
+        connOpts.set_password(config.get_string("password"));
+    }
+    try {
+        client.connect(connOpts);
+        client.subscribe(config.get_string("topic"), std::stoi(config.get_preset("qos")));
+    } catch (mqtt::exception &e) {
+        if (e.get_return_code() == -1) {
+            std::cerr << "MQTT connection failed - check if the broker is running :" << e.what() << std::endl;
+        } else {
+            std::cerr << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
+        }
+    }
+}
+
+std::unique_ptr<mqtt::async_client> prepare_consumer() {
     /**
      * Create connection to the broker and subsribe to the topic based on global constants and enviromental variables
      */
@@ -292,29 +317,10 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
                                    "Broker port not provided as environment variable MQTT_PORT!");
     std::string broker = brokerAddress + ":" + std::to_string(brokerPort);
 
-    auto client = std::make_unique<mqtt::client>(broker, config.get_string("client_id"),
-                                                 mqtt::create_options(get_mqtt_version(config.get_string("version"))));
-    auto connOpts = mqtt::connect_options_builder()
-            .clean_session()
-            .mqtt_version(get_mqtt_version(config.get_string("version")))
-            .finalize();
-    if (!config.is_empty("username")) {
-        connOpts.set_user_name(config.get_string("username"));
-    }
-    if (!config.is_empty("password")) {
-        connOpts.set_password(config.get_string("password"));
-    }
-    try {
-        client->connect(connOpts);
-        client->subscribe(config.get_string("topic"), std::stoi(config.get_preset("qos")));
-        client->start_consuming();
-    } catch (mqtt::exception &e) {
-        if (e.get_return_code() == -1) {
-            std::cerr << "MQTT connection failed - check if the broker is running :" << e.what() << std::endl;
-        } else {
-            std::cerr << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
-        }
-    }
+    auto client = std::make_unique<mqtt::async_client>(broker, config.get_string("client_id"));
+
+    client->start_consuming();
+    init_client(*client);
 
     return client;
 }
@@ -416,34 +422,35 @@ bool count_measurement(const std::string &message, Measurement &measurement) {
 }
 
 std::vector<std::string> paho_measure() {
-    std::unique_ptr<mqtt::client>::pointer client = prepare_consumer().release();
+    std::unique_ptr<mqtt::async_client>::pointer client = prepare_consumer().release();
     mqtt::const_message_ptr messagePointer;
     Measurement measurement = Measurement();
 
     while (measurement.active) {
-        if (client->is_connected()) {
-            if (client->try_consume_message(&messagePointer)) {
-                if (messagePointer) {
-                    std::string message = messagePointer->get_payload_str();
-                    // message arrived
-                    if (config.get_value("duration")) {
-                        measurement.active = time_measurement(message, measurement);
-                    } else {
-                        measurement.active = count_measurement(message, measurement);
-                    }
+        auto event = client->consume_event();
+        const auto &shared_ptr = event.get_message_if();
+        if (shared_ptr) {
+            auto &message_pointer = *shared_ptr;
+            std::string message = message_pointer->get_payload_str();
+            if (message_pointer) {
+                if (config.get_value("duration")) {
+                    measurement.active = time_measurement(message, measurement);
                 } else {
-                    client->disconnect();
-                    std::cerr << "Connection corrupted!" << std::endl;
+                    measurement.active = count_measurement(message, measurement);
                 }
-            }
-        } else {
-            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Reconnecting client! - " <<
-                    measurement.received_messages << " messages received" << std::endl;
-            client = prepare_consumer().release();
-            if (client->is_connected()) {
-                std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
+            } else {
+                std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Empty pointer arrived!" <<
                         std::endl;
             }
+        } else if (event.is_connected()) {
+            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
+                    std::endl;
+            // Client needs to subscribe to the same topic again after reconnecting
+            init_client(*client);
+        } else if (event.is_connection_lost()) {
+            std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() <<
+                    " Connection lost - reconnecting! - " << measurement.received_messages << " messages received" <<
+                    std::endl;
         }
     }
     return measurement.results;
