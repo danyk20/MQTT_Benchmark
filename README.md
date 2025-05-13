@@ -1,6 +1,6 @@
 # MQTT Benchmark
 
-There is producer and consumer architecture where messages from producer go through the broker to the consumer.
+There is producer and consumer architecture where messages from the producer go through the broker to the consumer.
 
 ![Publisher - Broker - Consumer](./diagrams/MQTT_Benchmark.svg)
 
@@ -66,7 +66,7 @@ cd ..
 - `PAHO_LIB_PATH`: path to `eclipse-paho` library installation directory.
 - `PAHO_INC_PATH`: path to `eclipse-paho` include directory.
 
-If you followed the previous installations steps, these variables should be set as:
+If you followed the previous installation steps, these variables should be set as:
 
 ```shell
 export MOSQUITTO_LIB_PATH="$MOSQUITTO_REPO_PATH/build/lib/"
@@ -86,7 +86,7 @@ to perform the benchmark measurements.
 These benchmark tools can work with any MQTT broker. There were used two different MQTT brokers that are separately
 configured and spawned with Dockerfiles:
 
-- [RabbitMQ Broker](./rabbitmq/)
+- [RabbitMQ Broker](./rabbitmq)
     - [Configuration](./rabbitmq/rabbitmq.conf)
 
       TODO: ADD DETAILS ABOUT CONFIGURATION
@@ -106,7 +106,7 @@ configured and spawned with Dockerfiles:
   sudo docker run --rm -it -d --name rabbitmq -p 1888:1888 -p 5672:5672 -p 15672:15672 rabbitmq-broker
   ```
 
-- [EMQX Broker](./emqx/)
+- [EMQX Broker](./emqx)
     - [Configuration](./emqx/emqx.conf)
 
       TODO: ADD DETAILS ABOUT CONFIGURATION
@@ -127,7 +127,8 @@ configured and spawned with Dockerfiles:
   ```
 
 ---
-:warning: In case you plan to run both brokers at the same time, make sure to have them use different ports to listen for incoming TCP connections.
+:warning: In case you plan to run both brokers at the same time, make sure to have them use different ports to listen
+for incoming TCP connections.
 
 ---
 
@@ -135,14 +136,17 @@ configured and spawned with Dockerfiles:
 :+1: You can start and stop both brokers using Docker Compose if you have it installed.
 
 Start both brokers:
+
 ```shell
    sudo docker compose up --build --detach
 ```
 
 Stop both brokers:
+
 ```shell
    sudo docker compose down
 ```
+
 ---
 
 ## Compiling the Producer and Consumer
@@ -207,6 +211,7 @@ Supported arguments flags:
 --buffer          max number of messages that can stored in the buffer                                       : <100>
 --username        authentication on broker                                                                   : <>
 --qos             Quality of Service, one or more values separated by comma                                  : <1>
+--session         whether to keep previous seasion with broker or not after disconnect                       : <True>
 --producers       number of producers involved (used for storage structure)                                  : <1>
 --max             maximum payload size in KB                                                                 : <72>
 --library         which if the supported libraries to use [paho/mosquitto]                                   : <paho>
@@ -230,8 +235,8 @@ Supported arguments flags:
   ./build/produce --min 1 --max 8000 --messages 1000 --seperator True --library mosquitto --repetitions 5
   ```
 
-- Produce messages for `--duration` seconds in periods of `--period` miliseconds. Connect to broker with credentials of
-  `--username` and `--password`. By default, message payload size is 72 kilobytes. Only middle `--middle` percent of
+- Produce messages for `--duration` seconds in periods of `--period` milliseconds. Connect to broker with credentials of
+  `--username` and `--password`. By default, the message payload size is 72 kilobytes. Only middle `--middle` percent of
   messages will be included in final measurement. The messages in the edges of the time window will be separators.
   Perform benchmark using each listed `--qos` quality of service.
 
@@ -240,7 +245,7 @@ Supported arguments flags:
   ```
 
 - Produce `--messages` number of messages. Set capacity of local message buffer to `--buffer` messages. If this buffer
-  is ever full, wait for `--timeout` miliseconds $\times$ aggregate buffer payload (in kilobytes) or until buffer
+  is ever full, wait for `--timeout` milliseconds $\times$ aggregate buffer payload (in kilobytes) or until buffer
   `--percentage` percentage of buffer is available. Whichever happens first.
 
   ```shell
@@ -257,6 +262,7 @@ Supported arguments flags:
 --consumers       number of consumers involved (used for storage structure)                                            : <1>
 --directory       path to the directory where all measurements will be stored                                          : <data/producer>
 --qos             Quality of Service, one or more values separated by comma                                            : <1>
+--session         whether to keep previous seasion with broker or not after disconnect                                 : <True>
 --version         protocol version (currently supported only for paho)                                                 : <3.1.1>
 --library         which if the supported library to use [paho]                                                         : <paho>
 --ratio           ratio of overall duration that will be measured (starting phase is complement, ignored) [0-100]%     : <80>
@@ -278,7 +284,7 @@ Supported arguments flags:
   ```
 
 - Consume messages for `--duration` seconds. Only include messages in measurement that arrived in last `--ratio` percent
-  of full duration period.
+  of a full duration period.
 
   ```shell
   ./build/consume --duration 30 --ratio 70
@@ -294,9 +300,10 @@ the flags of the consumer and the producer.
   exist 3 categories of quality of service:
 
     - QoS 0: With this quality of service, the broker does not send acknowledgment for any message sent by the producer.
-    - QoS 1: With this quality of service, producer receives acknowledgement from broker for every message produced.
-    - QoS 2: With this quality of service, producer receives acknowledgement from consumer (via broker) for every
-      message produced.
+    - QoS 1: With this quality of service, the producer receives acknowledgement from the broker for every message
+      produced.
+    - QoS 2: With this quality of service, the producer receives acknowledgement from the consumer (via broker) for
+      every message produced.
 
   At the time of testing, RabbitMQ MQTT broker does not support QoS 2.
 - **Separators** (`--separators`): Separators are special message batches used to signal the consumer. The consumer will
@@ -308,13 +315,13 @@ the flags of the consumer and the producer.
   ```
 
   In this stream of messages, there are a total of four separators. The consumer will count consecutive stream of
-  separators as a single occurrence and will ignore any separators until it receives a first valid message.
+  separators as a single occurrence and will ignore any separators until it receives the first valid message.
 
   Having this concept in mind is important for performing benchmarks as it allows the producer and consumer to "agree"
   on a message stream structure allowing for the results to be saved accordingly.
 
    ---
-  :warning: If the consumer expects more separators, then the producer sends then it will run indefinitely.
+  :warning: If the consumer expects more separators, than the producer sends, then it will run indefinitely.
 
   ---
 
