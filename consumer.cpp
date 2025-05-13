@@ -191,7 +191,7 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(
     *
     * Returns time_point when given phase should finish.
     */
-    long phase_duration = 0;
+    size_t phase_duration = 0;
     if (phase == 1) {
         phase_duration = config.get_value("duration") * config.get_value("ratio") / 100;
     } else {
@@ -546,7 +546,7 @@ void consume() {
     } else if (library == "MOSQUITTO" || library == "mosquitto") {
         measurements = mosquitto_measure();
     }
-    store_string(format_output(measurements)); // save all measured data into file
+    store_string(format_output(measurements)); // save all measured data into the file
 }
 
 std::vector<std::string> parse_qos(const std::string &input) {
@@ -584,7 +584,7 @@ void clear_old_data(const std::string &path) {
     }
 }
 
-bool parse_arguments(int argc, char *argv[], Configuration &config) {
+bool parse_arguments(const int argc, char *argv[], Configuration &config) {
     for (int i = 1; i < argc; ++i) {
         std::string flag = argv[i];
         flag = flag.substr(2); // remove leading "--"
@@ -607,7 +607,7 @@ bool parse_arguments(int argc, char *argv[], Configuration &config) {
     return true;
 }
 
-int main(int argc, char *argv[]) {
+int main(const int argc, char *argv[]) {
     if (!parse_arguments(argc, argv, config)) {
         return 1;
     }
