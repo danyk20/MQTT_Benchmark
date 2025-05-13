@@ -319,32 +319,28 @@ std::unique_ptr<mqtt::client> prepare_consumer() {
     return client;
 }
 
-bool process_payload(int &received_messages, size_t &current_size,
-                     const std::string &messageString,
-                     std::chrono::time_point<std::chrono::steady_clock> &next_report) {
+bool process_payload(const std::string &messageString, Measurement &measurement) {
     /**
      * Read message size and update message counter. Empty message is considered as separator.
      *
-     * @received_messages - how many messages have been received
-     * @current_size - how big is each of the messages
-     * @separation - flag whether is it separation message (with no payload)
+     * @measurement - object contianing: number of received meessages, start time, payload size, time of the next report
      * @messageString - received message as a String
-     * @next_report - earliest timestamp when next report about number of consumed messages will be printed
      *
      * returns True only if the message is empty
      */
     if (config.get_string("debug") == "messages" || config.get_string("debug") == "MESSAGES") {
         std::cout << messageString << std::endl;
     }
-    if (config.is_true("debug") && next_report <= std::chrono::steady_clock::now()) {
-        std::cout << "Consumed: " << std::to_string(received_messages) << " messages" << std::endl;
-        next_report = std::chrono::steady_clock::now() + std::chrono::milliseconds(config.get_value("report") * 1000);
+    if (config.is_true("debug") && measurement.next_report <= std::chrono::steady_clock::now()) {
+        std::cout << "Consumed: " << std::to_string(measurement.received_messages) << " messages" << std::endl;
+        measurement.next_report = std::chrono::steady_clock::now() + std::chrono::milliseconds(
+                                      config.get_value("report") * 1000);
     }
     if (messageString.empty() || messageString.at(0) == '!') {
         return true;
     }
-    current_size = messageString.size();
-    received_messages++;
+    measurement.payload_size = messageString.size();
+    measurement.received_messages++;
     return false;
 }
 
@@ -360,102 +356,80 @@ void print_flags() {
 }
 
 
-bool time_measurement(int &received_messages, std::vector<std::string> &measurements,
-                      const std::string &messagePointer,
-                      std::chrono::time_point<std::chrono::steady_clock> &starting_phase,
-                      std::chrono::time_point<std::chrono::steady_clock> &measuring_phase) {
+bool time_measurement(const std::string &messagePointer, Measurement &measurement) {
     /**
     * Process measurement restricted by time.
     *
-    * @received_messages - how many messages have been received
-    * @measurements - list of measurements to save as the result
+    * @measurement - object contianing: number of received meessages, deadline of starting_phase and measuring_phase
     * @message_pointer - pointer to the current received message
-    * @starting_phase - deadline of starting phase
-    * @measuring_phase - deadline of measurement phase
     *
     * returns True only if the measurement hasn't finished yet otherwise False
     */
     std::chrono::time_point<std::chrono::steady_clock> current_time = std::chrono::steady_clock::now();
-    if (starting_phase == std::chrono::time_point<std::chrono::steady_clock>{}) {
+    if (measurement.starting_phase == std::chrono::time_point<std::chrono::steady_clock>{}) {
         // set deadlines for each phase
-        starting_phase = get_phase_deadline(0);
-        measuring_phase = get_phase_deadline(1, starting_phase);
+        measurement.starting_phase = get_phase_deadline(0);
+        measurement.measuring_phase = get_phase_deadline(1, measurement.starting_phase);
         if (config.is_true("debug")) {
             std::cout << "Starting phase started!" << std::endl;
         }
     }
-    if (current_time >= measuring_phase) {
+    if (current_time >= measurement.measuring_phase) {
         // cleanup phase
         const size_t current_size = messagePointer.size();
-        add_measurement(starting_phase, received_messages, current_size, &measurements);
+        add_measurement(measurement.starting_phase, measurement.received_messages, current_size, &measurement.results);
         if (config.is_true("debug")) {
             std::cout << "Cleanup phase started!" << std::endl;
         }
         return false;
     }
-    if (current_time >= starting_phase) {
+    if (current_time >= measurement.starting_phase) {
         // measurement phase
-        received_messages++;
-        if (config.is_true("debug") && received_messages == 1) {
+        measurement.received_messages++;
+        if (config.is_true("debug") && measurement.received_messages == 1) {
             std::cout << "Measurement phase started!" << std::endl;
         }
     }
     return true;
 }
 
-bool count_measurement(int &received_messages, std::vector<std::string> &measurements,
-                       const std::string &message,
-                       std::chrono::steady_clock::time_point &start_time, size_t &payload_size,
-                       std::chrono::time_point<std::chrono::steady_clock> &next_report) {
+bool count_measurement(const std::string &message, Measurement &measurement) {
     /**
     * Process measurement restricted by time.
     *
-    * @received_messages - how many messages have been received
-    * @measurements - list of measurements to save as the result
+    * @measurement - object contianing: number of received meessages, start time, payload size, time of the next report
     * @message - current received message as a String
-    * @start_time - first message timestap that trigger the mesurement
-    * @payload_size - size of the first measured payload
-    * @next_report - earliest timestamp when next report about number of consumed messages will be printed
     *
     * returns True only if the measurement hasn't finished yet otherwise False
     */
-    size_t current_size;
-    bool separation = process_payload(received_messages, current_size, message, next_report);
-    if (received_messages == 1 && (!separation)) {
-        start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
-        payload_size = current_size;
-    } else if (separation && received_messages > 0) {
-        add_measurement(start_time, received_messages, payload_size, &measurements);
+    bool separation = process_payload(message, measurement);
+    if (measurement.received_messages == 1 && (!separation)) {
+        measurement.start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
+    } else if (separation && measurement.received_messages > 0) {
+        add_measurement(measurement.start_time, measurement.received_messages, measurement.payload_size,
+                        &measurement.results);
         // stop timer - separator
-        received_messages = 0; // reset message counter
+        measurement.received_messages = 0; // reset message counter
     }
 
-    return measurements.size() < config.get_value("separators");
+    return measurement.results.size() < config.get_value("separators");
 }
 
 std::vector<std::string> paho_measure() {
-    bool measuring = true;
-    auto start_time = std::chrono::steady_clock::now();
-    int received_messages = 0;
-    mqtt::const_message_ptr messagePointer;
-    std::chrono::time_point<std::chrono::steady_clock> starting_phase;
-    std::chrono::time_point<std::chrono::steady_clock> measuring_phase;
     std::unique_ptr<mqtt::client>::pointer client = prepare_consumer().release();
-    std::vector<std::string> measurements;
-    size_t payload_size;
-    std::chrono::time_point<std::chrono::steady_clock> next_report = std::chrono::steady_clock::now();
-    while (measuring) {
+    mqtt::const_message_ptr messagePointer;
+    Measurement measurement = Measurement();
+
+    while (measurement.active) {
         if (client->is_connected()) {
             if (client->try_consume_message(&messagePointer)) {
                 if (messagePointer) {
                     std::string message = messagePointer->get_payload_str();
                     // message arrived
                     if (config.get_value("duration")) {
-                        measuring = time_measurement(received_messages, measurements, message, starting_phase,
-                                                     measuring_phase);
+                        measurement.active = time_measurement(message, measurement);
                     } else {
-                        measuring = count_measurement(received_messages, measurements, message, start_time,
-                                                      payload_size, next_report);
+                        measurement.active = count_measurement(message, measurement);
                     }
                 } else {
                     client->disconnect();
@@ -464,7 +438,7 @@ std::vector<std::string> paho_measure() {
             }
         } else {
             std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Reconnecting client! - " <<
-                    received_messages << " messages received" << std::endl;
+                    measurement.received_messages << " messages received" << std::endl;
             client = prepare_consumer().release();
             if (client->is_connected()) {
                 std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
@@ -472,7 +446,7 @@ std::vector<std::string> paho_measure() {
             }
         }
     }
-    return measurements;
+    return measurement.results;
 }
 
 void on_connect(struct mosquitto *mosq, void *obj, int rc) {
@@ -492,13 +466,9 @@ void on_message(struct mosquitto *mosq, void *obj, const mosquitto_message *msg)
     auto *measurement = static_cast<Measurement *>(obj);
 
     if (config.get_value("duration")) {
-        measurement->active = time_measurement(measurement->received_messages, measurement->results,
-                                               message, measurement->starting_phase,
-                                               measurement->measuring_phase);
+        measurement->active = time_measurement(message, *measurement);
     } else {
-        measurement->active = count_measurement(measurement->received_messages, measurement->results,
-                                                message, measurement->start_time,
-                                                measurement->payload_size, measurement->next_report);
+        measurement->active = count_measurement(message, *measurement);
     }
 }
 
@@ -539,7 +509,7 @@ void consume() {
      * Consume all messages from subscribed topic untill defined number of separators arrive or time based deadline is
      * reached. Several consecutive separators are counted as single separator.
      */
-    std::string library = config.get_string("library");
+    const std::string library = config.get_string("library");
     std::vector<std::string> measurements;
     if (library == "PAHO" || library == "paho") {
         measurements = paho_measure();
