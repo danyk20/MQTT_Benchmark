@@ -324,7 +324,7 @@ void init_client(mqtt::async_client &client) {
             } else {
                 std::cerr << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
             }
-            sleep(1);
+            sleep(config.get_value("report"));
         }
     }
 }
@@ -515,7 +515,7 @@ std::vector<std::string> mosquitto_measure() {
                                     true, &measurement);
     while (!mosq) {
         std::cerr << "Failed to create Mosquitto instance.\n";
-        sleep(1);
+        sleep(config.get_value("report"));
     }
 
     mosquitto_connect_callback_set(mosq, on_connect);
@@ -524,7 +524,7 @@ std::vector<std::string> mosquitto_measure() {
     while (mosquitto_connect(mosq, std::getenv("BROKER_IP"), std::stoi(std::getenv("MQTT_PORT")), 60) !=
            MOSQ_ERR_SUCCESS) {
         std::cerr << "Unable to connect to broker.\n";
-        sleep(1);
+        sleep(config.get_value("report"));
     }
 
     mosquitto_loop_start(mosq);
