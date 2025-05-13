@@ -115,6 +115,10 @@ public:
                 "debug_period",
                 {"Time between consecutive progress messages in seconds.", "5", ""}
             },
+            {
+                "session",
+                {"whether to keep previous seasion with broker or not after disconnect", "True", ""}
+            },
         };
     }
 
@@ -619,7 +623,7 @@ std::string publish_paho(const std::string &message, int qos) {
         client.set_connected_handler(connected_handler);
 
         auto connOpts = mqtt::connect_options_builder()
-                .clean_session()
+                .clean_session(config.is_true("session"))
                 .automatic_reconnect(true)
                 .mqtt_version(get_mqtt_version(config.get_string("version")))
                 .finalize();
@@ -641,7 +645,7 @@ std::string publish_paho(const std::string &message, int qos) {
         ignore.replace(0, 1, "!");
         mqtt::message_ptr mqtt_ignore = mqtt::make_message(config.get_string("topic"), ignore, qos, false);
 
-        // first non measured message
+        // first non-measured message
         publish_separator(client);
 
         auto payload_size = message.size();
@@ -669,7 +673,6 @@ std::string publish_paho(const std::string &message, int qos) {
 }
 
 void on_connect(struct mosquitto *mosq, void *obj, const int reason_code) {
-    UNUSED(mosq); UNUSED(obj);
     printf("%ld connected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
            mosquitto_connack_string(reason_code));
     std::this_thread::sleep_for(std::chrono::seconds(5)); // TO DO Remove constant
@@ -677,12 +680,10 @@ void on_connect(struct mosquitto *mosq, void *obj, const int reason_code) {
 }
 
 void on_publish(struct mosquitto *mosq, void *obj, const int id) {
-    UNUSED(mosq); UNUSED(obj); UNUSED(id);
     mosquitto_published++;
 }
 
 void on_disconnect(struct mosquitto *mosq, void *p, int i) {
-    UNUSED(mosq); UNUSED(p);
     is_reconnecting = true;
     printf("%ld Disconnected: %s\n", std::chrono::steady_clock::now().time_since_epoch().count(),
            mosquitto_connack_string(i));
@@ -748,7 +749,7 @@ size_t perform_publishing_cycle(mosquitto &mosq, const std::string &message, con
     size_t sent = 0;
     if (config.get_value("duration") == 0) {
         sent++; // initial separator
-        // Publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
+        // publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
         for (size_t i = 0; i < config.get_value("messages"); ++i) {
             send(payload_len, mosq, message_ptr, topic, qos, sent, debug && print_debug(next_print));
         }

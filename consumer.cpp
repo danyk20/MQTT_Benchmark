@@ -99,6 +99,10 @@ public:
                 "report",
                 {"how often should consumer report number of received messages when debug is True in seconds", "30", ""}
             },
+            {
+                "session",
+                {"whether to keep previous seasion with broker or not after disconnect", "True", ""}
+            },
         };
     }
 
@@ -279,8 +283,21 @@ int get_mqtt_version(const std::string &user_input) {
 }
 
 void init_client(mqtt::async_client &client) {
+    /**
+    * This function sets up an MQTT client connection with options from the global config object.
+    * It handles:
+    * - Connection parameters (clean session, keep alive, MQTT version)
+    * - Authentication (username/password if provided)
+    * - Automatic reconnection
+    * - Topic subscription if this is a new session
+    * - Error handling with retries for connection failures
+    *
+    * The function will continuously retry connection with 1-second delays until successful.
+    *
+    * @param client Reference to the MQTT async client to initialize
+    */
     auto connOpts = mqtt::connect_options_builder()
-            .clean_session()
+            .clean_session(config.is_true("session"))
             .automatic_reconnect()
             .keep_alive_interval(std::chrono::seconds(30))
             .mqtt_version(get_mqtt_version(config.get_string("version")))
@@ -291,14 +308,23 @@ void init_client(mqtt::async_client &client) {
     if (!config.is_empty("password")) {
         connOpts.set_password(config.get_string("password"));
     }
-    try {
-        client.connect(connOpts);
-        client.subscribe(config.get_string("topic"), std::stoi(config.get_preset("qos")));
-    } catch (mqtt::exception &e) {
-        if (e.get_return_code() == -1) {
-            std::cerr << "MQTT connection failed - check if the broker is running :" << e.what() << std::endl;
-        } else {
-            std::cerr << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
+    while (true) {
+        try {
+            if (!client.connect(connOpts)->get_connect_response().is_session_present()) {
+                client.subscribe(config.get_string("topic"), std::stoi(config.get_preset("qos")));
+            }
+            break;
+        } catch (mqtt::exception &e) {
+            if (e.get_return_code() == -1) {
+                std::cerr << "MQTT connection failed - check if the broker is running :" << e.what() << std::endl;
+            } else if (e.get_return_code() == 2) {
+                std::cerr << "MQTT connection refused - check if the client_id and credentials are valid :" << e.what()
+                        <<
+                        std::endl;
+            } else {
+                std::cerr << e.what() << " code: " << std::to_string(e.get_return_code()) << std::endl;
+            }
+            sleep(1);
         }
     }
 }
@@ -445,8 +471,10 @@ std::vector<std::string> paho_measure() {
         } else if (event.is_connected()) {
             std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() << " Client Reconnected!" <<
                     std::endl;
-            // Client needs to subscribe to the same topic again after reconnecting
-            init_client(*client);
+            if (config.is_true("session")) {
+                // Client needs to subscribe to the same topic again after reconnecting if the session was cleaned
+                client->subscribe(config.get_string("topic"), std::stoi(config.get_preset("qos")));
+            }
         } else if (event.is_connection_lost()) {
             std::cerr << std::chrono::steady_clock::now().time_since_epoch().count() <<
                     " Connection lost - reconnecting! - " << measurement.received_messages << " messages received" <<
