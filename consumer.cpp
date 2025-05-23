@@ -512,7 +512,7 @@ std::vector<std::string> mosquitto_measure() {
     mosquitto_lib_init();
 
     mosquitto *mosq = mosquitto_new(config.is_empty("client_id") ? nullptr : config.get_string("client_id").c_str(),
-                                    true, &measurement);
+                                    config.is_true("session"), &measurement);
     while (!mosq) {
         std::cerr << "Failed to create Mosquitto instance.\n";
         sleep(config.get_value("report"));
@@ -619,7 +619,7 @@ int main(const int argc, char *argv[]) {
     if (config.is_true("fresh")) {
         clear_old_data(config.get_string("directory"));
     }
-    for (const auto &qos: parse_qos(config.get_preset("qos"))) {
+    for (const auto &qos: parse_qos(config.get_string("qos"))) {
         config.set_preset("qos", qos);
         consume();
     }
