@@ -62,3 +62,16 @@ For example, a client with the ID `myClient123` subscribing with QoS 1 would hav
 
 To modify the maximum length of a queue, you need to update the `max-length` parameter in the `definition.json` file,
 specifically under `policies.definition`.
+
+---
+
+## Monitoring Queues with RabbitMQ Management UI
+
+The **RabbitMQ Management UI** provides a graphical interface for monitoring and managing your RabbitMQ cluster,
+including all queues.
+
+* **Accessing the UI**: Typically, the Management UI is accessible via your web browser at
+  `http://<your-rabbitmq-server-ip>:15672`. (The port `15672` is the default for the Management UI).
+* **Checking Queues**: Once logged in, navigate to the **"Queues and Streams"** tab. Here, you will see a list of all
+  queues, including those created for MQTT subscriptions (e.g., `mqtt-subscription-myClient123qos1`). You can inspect
+  various metrics such as message rates, consumers, and queue type.
