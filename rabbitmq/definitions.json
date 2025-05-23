@@ -1,0 +1,34 @@
+{
+  "users": [
+    {
+      "name": "guest",
+      "password_hash": "K8Kdqilv7OwcpLt9Q8LNq1yrLd8cgaazEAWmcrGqwk8yriW1",
+      "tags": "monitoring",
+      "auth_backend": "internal"
+    }
+  ],
+  "vhosts": [
+    {"name": "/"}
+  ],
+  "permissions": [
+    {
+      "user": "guest",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "max_length_policy",
+      "pattern": ".*",
+      "apply-to": "queues",
+      "definition": {
+        "max-length": 100000
+      },
+      "priority": 0
+    }
+  ]
+}
