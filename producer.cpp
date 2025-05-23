@@ -695,7 +695,7 @@ mosquitto *get_mosquitto() {
      */
     mosquitto_lib_init();
     const char *client_id = config.is_empty("client_id") ? nullptr : config.get_string("client_id").c_str();
-    mosquitto *mosq = mosquitto_new(client_id, true, nullptr);
+    mosquitto *mosq = mosquitto_new(client_id, config.is_true("session"), nullptr);
     if (mosq == nullptr) {
         fprintf(stderr, "Error: Out of memory.\n");
         throw std::runtime_error("Fail to create client");
