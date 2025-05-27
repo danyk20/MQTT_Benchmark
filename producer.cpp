@@ -292,7 +292,7 @@ void publish_separator(mosquitto &mosq, const bool disconnect = false) {
     }
 }
 
-std::string process_measurement(std::chrono::steady_clock::time_point start_time,
+std::string process_measurement(const std::chrono::steady_clock::time_point start_time,
                                 std::vector<std::shared_ptr<mqtt::message> >::size_type payload_size,
                                 size_t number_of_messages) {
     /**
@@ -303,7 +303,7 @@ std::string process_measurement(std::chrono::steady_clock::time_point start_time
      * @payload_size - how big was each payload
      * @number_of_messages - number of published messages
      */
-    auto end_time = std::chrono::steady_clock::now();
+    const auto end_time = std::chrono::steady_clock::now();
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time) / 1000.0;
     const auto message_per_seconds = static_cast<int>(number_of_messages) / duration.count();
     const auto throughput = message_per_seconds * static_cast<double>(payload_size);
