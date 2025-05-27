@@ -223,6 +223,7 @@ Supported arguments flags:
 --min_timeout     minimum total timeout in ms                                                                : <1000>
 --fresh           delete all previous measurements from output folder                                        : <False>
 --debug           print debug messages, e.g. when buffer reaches the limit                                   : <False>
+--latency         whether to measure delivery latency                                                        : <False>
 ```
 
 ### Producer Examples
@@ -273,6 +274,7 @@ Supported arguments flags:
 --output          output file name                                                                                     : <consumer_results.txt>
 --fresh           delete all previous measurements from output folder                                                  : <False>
 --debug           print debug messages, e.g. separator arrived                                                         : <False>
+--latency         whether to measure delivery latency                                                                  : <False>
 ```
 
 ### Consumer Examples

@@ -16,6 +16,7 @@ public:
     std::vector<std::string> results;
     size_t payload_size = 0;
     std::chrono::time_point<std::chrono::steady_clock> next_report;
+    std::vector<long long> latency = {};
 
     Measurement() {
         this->active = true;
@@ -102,6 +103,10 @@ public:
             {
                 "session",
                 {"whether to keep previous seasion with broker or not after disconnect", "True", ""}
+            },
+            {
+                "latency",
+                {"whether to measure delivery latency", "False", ""}
             },
         };
     }
@@ -243,28 +248,52 @@ std::string format_output(const std::vector<std::string> &strings) {
     return result;
 }
 
-void add_measurement(const std::chrono::steady_clock::time_point start_time, const int received_messages,
-                     const size_t current_size, std::vector<std::string> *measurements) {
+std::string latency_output(const std::vector<long long> &latencies) {
+    /**
+     * Format elements in the vector into following string (min,max,avg)
+     *
+     * @latencies - vector of latencies in ms to be formatted
+     */
+    long long min_latency = latencies.at(0);
+    long long max_latency = latencies.at(0);
+    long long total_latency = 0;
+    for (const long long latency: latencies) {
+        total_latency += latency;
+        if (latency < min_latency) {
+            min_latency = latency;
+        }
+        if (latency > max_latency) {
+            max_latency = latency;
+        }
+    }
+    return "Min: " + std::to_string(min_latency) + "ms, Max: " + std::to_string(max_latency) + "ms, Avg: " +
+           std::to_string(total_latency / latencies.size()) + "ms";
+}
+
+void add_measurement(Measurement &measurement, const size_t current_size) {
     /*
-     * Add measurement as string into given vector of measurements. Format of single measurement is following:
+     * Add measurement as string into given vector of measurements. Format of a single measurement is the following:
      * [number_of_messages,size_of_the_message,B/s,number_of_messages/s]
      *
-     * @start_time - when was the first message received
-     * @received_messages - how many messages have been received
+     * @measurement - object containing all measurement data
      * @current_size - how big is each of the messages
-     * @measurements - vector of previous measurements
      */
+    const auto start_time = measurement.start_time;
+    const auto received_messages = measurement.received_messages;
     const std::chrono::steady_clock::time_point end_time = std::chrono::steady_clock::now();
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time) / 1000.0;
     const auto message_per_seconds = received_messages / duration.count();
     const auto throughput = message_per_seconds * static_cast<double>(current_size);
-    const std::string measurement = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) + ","
-                                    + std::to_string(static_cast<int>(throughput)) + "," +
-                                    std::to_string(static_cast<int>(message_per_seconds)) + "]";
+    const std::string record = "[" + std::to_string(received_messages) + "," + std::to_string(current_size) + ","
+                               + std::to_string(static_cast<int>(throughput)) + "," +
+                               std::to_string(static_cast<int>(message_per_seconds)) + "]";
     if (config.is_true("debug")) {
-        std::cout << measurement << " - " << duration.count() << "s" << std::endl;
+        std::cout << record << " - " << duration.count() << "s" << std::endl;
     }
-    measurements->push_back(measurement);
+    if (config.is_true("latency")) {
+        std::cout << latency_output(measurement.latency) << std::endl;
+    }
+    measurement.results.push_back(record);
 }
 
 int get_mqtt_version(const std::string &user_input) {
@@ -351,27 +380,45 @@ std::unique_ptr<mqtt::async_client> prepare_consumer() {
     return client;
 }
 
-bool process_payload(const std::string &messageString, Measurement &measurement) {
+void calculate_latency(const std::string &message, Measurement &measurement) {
+    /**
+     * Calculates and records the latency of a message
+     *
+     * @message - The received message as a constant reference to a `std::string`.
+     * The first 16 characters of this string are expected to contain a `long long` timestamp
+     * @measurement - A reference to a `Measurement` object where the calculated latency will be stored. The `latency`
+     * member of this object
+     */
+    if (config.is_true("latency")) {
+        const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch());
+        const long long sender_timestamp = std::stoll(message.substr(0, 13)); // ms timestamp has 13 digits
+        measurement.latency.push_back(now.count() - sender_timestamp);
+    }
+}
+
+bool process_payload(const std::string &payload, Measurement &measurement) {
     /**
      * Read message size and update message counter. Empty message is considered as separator.
      *
      * @measurement - object contianing: number of received meessages, start time, payload size, time of the next report
-     * @messageString - received message as a String
+     * @payload - received message as a String
      *
      * returns True only if the message is empty
      */
+    calculate_latency(payload, measurement);
     if (config.get_string("debug") == "messages" || config.get_string("debug") == "MESSAGES") {
-        std::cout << messageString << std::endl;
+        std::cout << payload << std::endl;
     }
     if (config.is_true("debug") && measurement.next_report <= std::chrono::steady_clock::now()) {
         std::cout << "Consumed: " << std::to_string(measurement.received_messages) << " messages" << std::endl;
         measurement.next_report = std::chrono::steady_clock::now() + std::chrono::milliseconds(
                                       config.get_value("report") * 1000);
     }
-    if (messageString.empty() || messageString.at(0) == '!') {
+    if (payload.empty() || payload.at(0) == '!') {
         return true;
     }
-    measurement.payload_size = messageString.size();
+    measurement.payload_size = payload.size();
     measurement.received_messages++;
     return false;
 }
@@ -388,16 +435,16 @@ void print_flags() {
 }
 
 
-bool time_measurement(const std::string &messagePointer, Measurement &measurement) {
+bool time_measurement(const std::string &message, Measurement &measurement) {
     /**
     * Process measurement restricted by time.
     *
     * @measurement - object contianing: number of received meessages, deadline of starting_phase and measuring_phase
-    * @message_pointer - pointer to the current received message
+    * @message - the current received message
     *
     * returns True only if the measurement hasn't finished yet otherwise False
     */
-    std::chrono::time_point<std::chrono::steady_clock> current_time = std::chrono::steady_clock::now();
+    const std::chrono::time_point<std::chrono::steady_clock> current_time = std::chrono::steady_clock::now();
     if (measurement.starting_phase == std::chrono::time_point<std::chrono::steady_clock>{}) {
         // set deadlines for each phase
         measurement.starting_phase = get_phase_deadline(0);
@@ -408,8 +455,8 @@ bool time_measurement(const std::string &messagePointer, Measurement &measuremen
     }
     if (current_time >= measurement.measuring_phase) {
         // cleanup phase
-        const size_t current_size = messagePointer.size();
-        add_measurement(measurement.starting_phase, measurement.received_messages, current_size, &measurement.results);
+        const size_t current_size = message.size();
+        add_measurement(measurement, current_size);
         if (config.is_true("debug")) {
             std::cout << "Cleanup phase started!" << std::endl;
         }
@@ -417,6 +464,7 @@ bool time_measurement(const std::string &messagePointer, Measurement &measuremen
     }
     if (current_time >= measurement.starting_phase) {
         // measurement phase
+        calculate_latency(message, measurement);
         measurement.received_messages++;
         if (config.is_true("debug") && measurement.received_messages == 1) {
             std::cout << "Measurement phase started!" << std::endl;
@@ -438,8 +486,7 @@ bool count_measurement(const std::string &message, Measurement &measurement) {
     if (measurement.received_messages == 1 && (!separation)) {
         measurement.start_time = std::chrono::steady_clock::now(); // start timer - first measured payload arrived
     } else if (separation && measurement.received_messages > 0) {
-        add_measurement(measurement.start_time, measurement.received_messages, measurement.payload_size,
-                        &measurement.results);
+        add_measurement(measurement, measurement.payload_size);
         // stop timer - separator
         measurement.received_messages = 0; // reset message counter
     }
@@ -450,7 +497,7 @@ bool count_measurement(const std::string &message, Measurement &measurement) {
 std::vector<std::string> paho_measure() {
     std::unique_ptr<mqtt::async_client>::pointer client = prepare_consumer().release();
     mqtt::const_message_ptr messagePointer;
-    Measurement measurement = Measurement();
+    auto measurement = Measurement();
 
     while (measurement.active) {
         auto event = client->consume_event();

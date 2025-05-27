@@ -119,6 +119,10 @@ public:
                 "session",
                 {"whether to keep previous seasion with broker or not after disconnect", "True", ""}
             },
+            {
+                "latency",
+                {"whether to measure delivery latency", "False", ""}
+            },
         };
     }
 
@@ -293,8 +297,8 @@ void publish_separator(mosquitto &mosq, const bool disconnect = false) {
 }
 
 std::string process_measurement(const std::chrono::steady_clock::time_point start_time,
-                                std::vector<std::shared_ptr<mqtt::message> >::size_type payload_size,
-                                size_t number_of_messages) {
+                                const std::vector<std::shared_ptr<mqtt::message> >::size_type payload_size,
+                                const size_t number_of_messages) {
     /**
      * Calculate all attributes from the measuremnt and return them in a string of following format:
      * [number_of_messages,single-message_size,B/s,number_of_message/s]
@@ -365,7 +369,7 @@ bool wait_for_buffer_dump(const size_t sent, const size_t percentage, const size
 }
 
 bool wait_for_buffer_dump(const std::vector<std::shared_ptr<mqtt::token> > &tokens, size_t &last_published,
-                          size_t percentage, size_t payload_size) {
+                          const size_t percentage, const size_t payload_size) {
     /**
     * @ tokens - list of all tokens for messages that have been already sent asynchronously
     * @ last_published - index of the last confirmed token (message has been sent) from the tokens list
@@ -423,7 +427,7 @@ int get_mqtt_version(const std::string &user_input) {
     return version;
 }
 
-std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase) {
+std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(const int phase) {
     /**
     * @ phase - number (0 - starting, 1- measutring, 2- cleanup)
     *
@@ -440,6 +444,26 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(int phase)
     }
     const std::chrono::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(phase_duration);
     return deadline;
+}
+
+char* add_timestamp(const size_t payload_size, const char *msg) {
+    /**
+     * Creates a new character array containing the provided message,
+     * optionally prepending a timestamp if a specific configuration is enabled.
+     *
+     * @param payload_size The intended maximum size of the payload (excluding the null terminator).
+     * @param msg A null-terminated C-string to be used as the base message.
+     * @return A pointer to a newly allocated character array containing the (potentially timestamped) payload.
+     */
+    const auto payload = new char[payload_size + 1];
+    std::strcpy(payload, msg);
+    if (config.is_true("latency")) {
+        const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch());
+        const std::string time_str = std::to_string(now.count());
+        strncpy(payload, time_str.c_str(), strlen(time_str.c_str()));
+    }
+    return payload;
 }
 
 void send(size_t payload_size, mosquitto &mosq, const char *msg, const char *topic, const int qos,
@@ -466,13 +490,15 @@ void send(size_t payload_size, mosquitto &mosq, const char *msg, const char *top
             break;
         }
     }
-    if (const int return_code = mosquitto_publish(&mosq, nullptr, topic, static_cast<int>(payload_size), msg, qos,
+    const char *payload = add_timestamp(payload_size, msg);
+    if (const int return_code = mosquitto_publish(&mosq, nullptr, topic, static_cast<int>(payload_size), payload, qos,
                                                   false);
         return_code != MOSQ_ERR_SUCCESS) {
         fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(return_code));
     } else {
         sent++;
     }
+    delete[] payload;
     const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(config.get_value("period"));
     if (debug) {
         std::cout << sent << " - published and " << sent - mosquitto_published << " in buffer" << std::endl;
@@ -509,7 +535,13 @@ void send(size_t payload_size, mqtt::async_client &client, const mqtt::message_p
     while (is_reconnecting) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    const char *payload = add_timestamp(payload_size, msg->get_payload_str().c_str());
+    if (config.is_true("latency")) {
+        msg->set_payload(payload);
+    }
+
     tokens.push_back(client.publish(msg));
+    delete[] payload;
 
     if (debug) {
         std::cout << last_published << " - published and " << tokens.size() - last_published << " in buffer" <<
