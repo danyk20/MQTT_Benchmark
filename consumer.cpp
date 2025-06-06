@@ -254,6 +254,9 @@ std::string latency_output(const std::vector<long long> &latencies) {
      *
      * @latencies - vector of latencies in ms to be formatted
      */
+    if (latencies.empty()) {
+        return "No latency measurements!";
+    }
     long long min_latency = latencies.at(0);
     long long max_latency = latencies.at(0);
     long long total_latency = 0;
@@ -597,6 +600,9 @@ void consume() {
         measurements = paho_measure();
     } else if (library == "MOSQUITTO" || library == "mosquitto") {
         measurements = mosquitto_measure();
+    }
+    else {
+        std::cerr << "Unknown library type: " << library << "\n";
     }
     store_string(format_output(measurements)); // save all measured data into the file
 }
