@@ -24,7 +24,7 @@ public:
     }
 
     void start() {
-        this->measuring_phase = std::chrono::steady_clock::now();
+        this->start_time = std::chrono::steady_clock::now();
         this->next_report = std::chrono::steady_clock::now();
     }
 };
@@ -400,6 +400,17 @@ void calculate_latency(const std::string &message, Measurement &measurement) {
     }
 }
 
+void report(Measurement &measurement) {
+    /**
+     * Prints debug report in given frequncy
+     *
+     * @measurement - object contianing: number of received meessages, deadline of starting_phase and measuring_phase
+     *
+     */
+    std::cout << "Consumed: " << std::to_string(measurement.received_messages) << " messages" << std::endl;
+    measurement.next_report = std::chrono::steady_clock::now() + std::chrono::seconds(config.get_value("report"));
+}
+
 bool process_payload(const std::string &payload, Measurement &measurement) {
     /**
      * Read message size and update message counter. Empty message is considered as separator.
@@ -414,9 +425,7 @@ bool process_payload(const std::string &payload, Measurement &measurement) {
         std::cout << payload << std::endl;
     }
     if (config.is_true("debug") && measurement.next_report <= std::chrono::steady_clock::now()) {
-        std::cout << "Consumed: " << std::to_string(measurement.received_messages) << " messages" << std::endl;
-        measurement.next_report = std::chrono::steady_clock::now() + std::chrono::milliseconds(
-                                      config.get_value("report") * 1000);
+        report(measurement);
     }
     if (payload.empty() || payload.at(0) == '!') {
         return true;
@@ -436,7 +445,6 @@ void print_flags() {
                config.get_preset(argument).c_str());
     }
 }
-
 
 bool time_measurement(const std::string &message, Measurement &measurement) {
     /**
@@ -469,9 +477,16 @@ bool time_measurement(const std::string &message, Measurement &measurement) {
         // measurement phase
         calculate_latency(message, measurement);
         measurement.received_messages++;
-        if (config.is_true("debug") && measurement.received_messages == 1) {
-            std::cout << "Measurement phase started!" << std::endl;
+        if (measurement.received_messages == 1) {
+            measurement.start();
+            if (config.is_true("debug")) {
+                std::cout << "Measurement phase started!" << std::endl;
+            }
         }
+        if (measurement.next_report <= current_time && config.is_true("debug")) {
+            report(measurement);
+        }
+
     }
     return true;
 }
@@ -579,8 +594,8 @@ std::vector<std::string> mosquitto_measure() {
 
     mosquitto_loop_start(mosq);
 
-    while (measurement.active) {
-    }
+    do {sleep(1000);}
+    while (measurement.active);
 
     mosquitto_disconnect(mosq);
     mosquitto_loop_stop(mosq, true);
