@@ -721,6 +721,24 @@ void on_disconnect(struct mosquitto *mosq, void *p, int i) {
            mosquitto_connack_string(i));
 }
 
+void authenticate(mosquitto *mosq) {
+    /**
+     * Set credentials for MQTT connection
+     *
+     * @ *mosq - Mosquitto configuration object reference
+     */
+    const std::string username_str = config.get_string("username");
+    const std::string password_str = config.get_string("password");
+    const char *username = username_str.empty() ? nullptr : username_str.c_str();
+    const char *password = password_str.empty() ? nullptr : password_str.c_str();
+    const int authentification = mosquitto_username_pw_set(mosq, username, password);
+    if (authentification == MOSQ_ERR_SUCCESS && config.is_true("debug")) {
+        std::cout << "User '" << username << "':'" << password << "' authenticated!\n";
+    } else if (authentification == MOSQ_ERR_INVAL) {
+        std::cout << "User '" << username << "' credentials invalid!\n";
+    }
+}
+
 mosquitto *get_mosquitto() {
     /**
      * Initilize Mosquitto client
@@ -733,10 +751,7 @@ mosquitto *get_mosquitto() {
         throw std::runtime_error("Fail to create client");
     }
 
-    const char *username = config.is_empty("username") ? nullptr : config.get_string("username").c_str();
-    const char *password = config.is_empty("password") ? nullptr : config.get_string("password").c_str();
-
-    mosquitto_username_pw_set(mosq, username, password);
+    authenticate(mosq);
 
     mosquitto_connect_callback_set(mosq, on_connect);
     mosquitto_publish_callback_set(mosq, on_publish);

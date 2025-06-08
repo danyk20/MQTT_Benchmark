@@ -486,7 +486,6 @@ bool time_measurement(const std::string &message, Measurement &measurement) {
         if (measurement.next_report <= current_time && config.is_true("debug")) {
             report(measurement);
         }
-
     }
     return true;
 }
@@ -572,6 +571,24 @@ void on_message(struct mosquitto *mosq, void *obj, const mosquitto_message *msg)
     }
 }
 
+void authenticate(mosquitto *mosq) {
+    /**
+     * Set credentials for MQTT connection
+     *
+     * @ *mosq - Mosquitto configuration object reference
+     */
+    const std::string username_str = config.get_string("username");
+    const std::string password_str = config.get_string("password");
+    const char *username = username_str.empty() ? nullptr : username_str.c_str();
+    const char *password = password_str.empty() ? nullptr : password_str.c_str();
+    const int authentification = mosquitto_username_pw_set(mosq, username, password);
+    if (authentification == MOSQ_ERR_SUCCESS && config.is_true("debug")) {
+        std::cout << "User '" << username << "':'" << password << "' authenticated!\n";
+    } else if (authentification == MOSQ_ERR_INVAL) {
+        std::cout << "User '" << username << "' credentials invalid!\n";
+    }
+}
+
 std::vector<std::string> mosquitto_measure() {
     Measurement measurement;
     mosquitto_lib_init();
@@ -583,16 +600,7 @@ std::vector<std::string> mosquitto_measure() {
         sleep(config.get_value("report"));
     }
 
-    if (!config.is_empty("username")) {
-        const char *password = config.is_empty("password") ? nullptr : config.get_string("password").c_str();
-        const int authentification = mosquitto_username_pw_set(mosq, config.get_string("username").c_str(), password);
-        if (authentification == MOSQ_ERR_SUCCESS) {
-            std::cout << "User " << config.get_string("username") << " authenticated!\n";
-        }
-        else if (authentification == MOSQ_ERR_INVAL) {
-            std::cout << "User " << config.get_string("username") << " credentials invalid!\n";
-        }
-    }
+    authenticate(mosq);
 
     mosquitto_connect_callback_set(mosq, on_connect);
     mosquitto_message_callback_set(mosq, on_message);
@@ -605,9 +613,7 @@ std::vector<std::string> mosquitto_measure() {
 
     mosquitto_loop_start(mosq);
 
-    do {sleep(1000);}
-    while (measurement.active);
-
+    while (measurement.active){};
     mosquitto_disconnect(mosq);
     mosquitto_loop_stop(mosq, true);
     mosquitto_destroy(mosq);
@@ -626,8 +632,7 @@ void consume() {
         measurements = paho_measure();
     } else if (library == "MOSQUITTO" || library == "mosquitto") {
         measurements = mosquitto_measure();
-    }
-    else {
+    } else {
         std::cerr << "Unknown library type: " << library << "\n";
     }
     store_string(format_output(measurements)); // save all measured data into the file
