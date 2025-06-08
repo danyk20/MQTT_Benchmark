@@ -446,7 +446,7 @@ std::chrono::time_point<std::chrono::steady_clock> get_phase_deadline(const int 
     return deadline;
 }
 
-char* add_timestamp(const size_t payload_size, const char *msg) {
+char *add_timestamp(const size_t payload_size, const char *msg) {
     /**
      * Creates a new character array containing the provided message,
      * optionally prepending a timestamp if a specific configuration is enabled.
@@ -501,7 +501,8 @@ void send(size_t payload_size, mosquitto &mosq, const char *msg, const char *top
     delete[] payload;
     const auto next_run_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(config.get_value("period"));
     if (debug) {
-        std::cout << sent << " - published and " << sent - mosquitto_published << " in buffer" << std::endl;
+        std::cout << sent << " - published to " << topic << " topic and " << sent - mosquitto_published << " in buffer"
+                << std::endl;
     }
     std::this_thread::sleep_until(next_run_time);
 }
@@ -744,11 +745,13 @@ mosquitto *get_mosquitto() {
      * Initilize Mosquitto client
      */
     mosquitto_lib_init();
-    const char *client_id = config.is_empty("client_id") ? nullptr : config.get_string("client_id").c_str();
-    mosquitto *mosq = mosquitto_new(client_id, config.is_true("session"), nullptr);
+    const std::string client_id = config.is_empty("client_id") ? nullptr : config.get_string("client_id").c_str();
+    mosquitto *mosq = mosquitto_new(client_id.c_str(), config.is_true("session"), nullptr);
     if (mosq == nullptr) {
         fprintf(stderr, "Error: Out of memory.\n");
         throw std::runtime_error("Fail to create client");
+    } else if (config.is_true("debug")) {
+        std::cout << "Client with ID " << client_id << " created!\n";
     }
 
     authenticate(mosq);
@@ -788,7 +791,7 @@ size_t perform_publishing_cycle(mosquitto &mosq, const std::string &message, con
     ignore.replace(0, 1, "!");
     const char *message_ignore_ptr = ignore.c_str();
     const char *message_ptr = message.c_str();
-    const char *topic = config.get_string("topic").c_str();
+    const std::string topic = config.get_string("topic");
     const bool debug = config.is_true("debug");
     size_t measured_messages = 0;
     std::chrono::time_point<std::chrono::steady_clock> next_print = std::chrono::steady_clock::now();
@@ -798,7 +801,7 @@ size_t perform_publishing_cycle(mosquitto &mosq, const std::string &message, con
         sent++; // initial separator
         // publish pre-created messages NUMBER_OF_MESSAGES times asynchronously
         for (size_t i = 0; i < config.get_value("messages"); ++i) {
-            send(payload_len, mosq, message_ptr, topic, qos, sent, debug && print_debug(next_print));
+            send(payload_len, mosq, message_ptr, topic.c_str(), qos, sent, debug && print_debug(next_print));
         }
         measured_messages = sent - 1;
         std::chrono::time_point<std::chrono::steady_clock> deadline =
@@ -819,7 +822,7 @@ size_t perform_publishing_cycle(mosquitto &mosq, const std::string &message, con
         }
         auto end_time = get_phase_deadline(0);
         while (std::chrono::steady_clock::now() < end_time) {
-            send(payload_len, mosq, message_ignore_ptr, topic, qos, sent, debug && print_debug(next_print));
+            send(payload_len, mosq, message_ignore_ptr, topic.c_str(), qos, sent, debug && print_debug(next_print));
         }
         phase_0_messages = sent;
         // Measurement phase: 1
@@ -829,7 +832,7 @@ size_t perform_publishing_cycle(mosquitto &mosq, const std::string &message, con
 
         end_time = get_phase_deadline(1);
         while (std::chrono::steady_clock::now() < end_time) {
-            send(payload_len, mosq, message_ptr, topic, qos, sent, debug && print_debug(next_print));
+            send(payload_len, mosq, message_ptr, topic.c_str(), qos, sent, debug && print_debug(next_print));
         }
         measured_messages = sent - phase_0_messages;
         // Cleanup phase: 2
@@ -838,7 +841,7 @@ size_t perform_publishing_cycle(mosquitto &mosq, const std::string &message, con
         }
         end_time = get_phase_deadline(2);
         while (std::chrono::steady_clock::now() < end_time) {
-            send(payload_len, mosq, message_ignore_ptr, topic, qos, sent, debug && print_debug(next_print));
+            send(payload_len, mosq, message_ignore_ptr, topic.c_str(), qos, sent, debug && print_debug(next_print));
         }
     }
     return measured_messages;
