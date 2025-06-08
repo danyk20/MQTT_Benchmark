@@ -583,6 +583,17 @@ std::vector<std::string> mosquitto_measure() {
         sleep(config.get_value("report"));
     }
 
+    if (!config.is_empty("username")) {
+        const char *password = config.is_empty("password") ? nullptr : config.get_string("password").c_str();
+        const int authentification = mosquitto_username_pw_set(mosq, config.get_string("username").c_str(), password);
+        if (authentification == MOSQ_ERR_SUCCESS) {
+            std::cout << "User " << config.get_string("username") << " authenticated!\n";
+        }
+        else if (authentification == MOSQ_ERR_INVAL) {
+            std::cout << "User " << config.get_string("username") << " credentials invalid!\n";
+        }
+    }
+
     mosquitto_connect_callback_set(mosq, on_connect);
     mosquitto_message_callback_set(mosq, on_message);
 
